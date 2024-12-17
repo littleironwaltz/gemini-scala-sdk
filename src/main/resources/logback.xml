@@ -1,12 +1,16 @@
-<?xml version="1.0" encoding="UTF-8"?>
+<!-- logback.xml - Configuration for Logback logging framework -->
+
 <configuration>
+    <!-- Console appender configuration -->
     <appender name="STDOUT" class="ch.qos.logback.core.ConsoleAppender">
         <encoder>
-            <pattern>%msg%n</pattern>
+            <!-- Log message pattern -->
+            <pattern>%d{yyyy-MM-dd HH:mm:ss.SSS} [%thread] %-5level %logger{36} - %msg%n</pattern>
         </encoder>
     </appender>
 
-    <root level="INFO">
-        <appender-ref ref="STDOUT" />
+    <!-- Root logger configuration -->
+    <root level="INFO"> <!-- Default logging level -->
+        <appender-ref ref="STDOUT" /> <!-- Reference to the console appender -->
     </root>
 </configuration>

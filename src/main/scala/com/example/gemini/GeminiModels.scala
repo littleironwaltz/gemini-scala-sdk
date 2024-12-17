@@ -1,126 +1,64 @@
+// GeminiModels.scala
 package com.example.gemini
 
 import io.circe.generic.JsonCodec
 
-/**
- * Configuration parameters for content generation.
- * Controls various aspects of the model's generation behavior.
- *
- * @param temperature Controls randomness in the output. Range: [0.0, 1.0]
- *                    Higher values produce more creative but less focused output
- *                    Lower values produce more deterministic and focused output
- * @param topP        Nucleus sampling parameter. Range: [0.0, 1.0]
- *                    Controls diversity by considering only the most likely tokens
- * @param topK        Limits the number of tokens considered for each generation step
- *                    Higher values increase diversity but may reduce quality
- * @param maxOutputTokens Maximum length of generated content in tokens
- */
+// Configuration for text generation
 @JsonCodec
 case class GenerationConfig(
-  temperature: Double = 0.7,
-  topP: Double = 0.9,
-  topK: Int = 40,
-  maxOutputTokens: Int = 1024
+  temperature: Double = 0.7, // Controls randomness in generation
+  topP: Double = 0.9, // Nucleus sampling parameter
+  topK: Int = 40, // Top-K sampling parameter
+  maxOutputTokens: Int = 1024 // Maximum number of tokens in output
 )
 
-/**
- * Represents a single message in a conversation with the model.
- * Used for structuring inputs in chat-based interactions.
- *
- * @param role    Identifies the message sender (e.g., "user", "assistant", "system")
- * @param content The actual message text
- */
+// Represents a chat message
 @JsonCodec
 case class ChatMessage(role: String, content: String)
 
-/**
- * Detailed information about a specific Gemini model.
- * Contains model capabilities and limitations.
- *
- * @param name The unique identifier for the model
- * @param displayName Human-readable name for the model
- * @param description Detailed description of the model's capabilities
- * @param inputTokenLimit Maximum number of tokens allowed in input
- * @param outputTokenLimit Maximum number of tokens the model can generate
- */
+// Information about a model
 @JsonCodec
 case class ModelInfo(
-  name: String,
-  displayName: String,
-  description: String,
-  inputTokenLimit: Int,
-  outputTokenLimit: Int
+  name: String, // Model's name
+  displayName: String, // Display name for the model
+  description: String, // Description of the model
+  inputTokenLimit: Int, // Maximum input tokens allowed
+  outputTokenLimit: Int // Maximum output tokens allowed
 )
 
-/**
- * Container for a list of available models.
- * Used in the response of the models listing endpoint.
- *
- * @param models Sequence of available model information
- */
+// List of models
 @JsonCodec
 case class ModelList(models: Seq[ModelInfo])
 
-/**
- * Represents a text segment in the model's input or output.
- *
- * @param text The actual text content
- */
+// Part of the content
 @JsonCodec
 case class Part(text: String)
 
-/**
- * Container for multiple content parts.
- * Allows for structured content representation.
- *
- * @param parts Sequence of content parts
- */
+// Content consisting of multiple parts
 @JsonCodec
 case class Content(parts: Seq[Part])
 
-/**
- * Safety evaluation for generated content.
- * Indicates potential concerns in the content.
- *
- * @param category The type of safety concern (e.g., "harassment", "hate_speech")
- * @param probability The likelihood of the content falling into this category
- */
+// Safety rating for content
 @JsonCodec
 case class SafetyRating(
-  category: String,
-  probability: String
+  category: String, // Category of safety concern
+  probability: String // Probability of the concern
 )
 
-/**
- * Reference information for source material.
- *
- * @param url The source URL
- * @param title The title of the referenced content
- */
+// Citation information
 @JsonCodec
 case class Citation(
-  url: String,
-  title: String
+  url: String, // URL of the citation
+  title: String // Title of the citation
 )
 
-/**
- * Container for multiple citations.
- *
- * @param citations Sequence of citation information
- */
+// Metadata for citations
 @JsonCodec
 case class CitationMetadata(
-  citations: Seq[Citation]
+  citations: Seq[Citation] // List of citations
 )
 
-/**
- * Represents a single generated response from the model.
- * Contains the generated content and associated metadata.
- *
- * @param content The generated content
- * @param safetyRatings Optional safety evaluations for the content
- * @param citationMetadata Optional references to source materials
- */
+// Candidate content with optional safety ratings and citation metadata
 @JsonCodec
 case class Candidate(
   content: Content,
@@ -128,59 +66,32 @@ case class Candidate(
   citationMetadata: Option[CitationMetadata] = None
 )
 
-/**
- * Response from the content generation API.
- * May contain multiple candidates if the model was configured to generate alternatives.
- *
- * @param candidates Sequence of generated responses
- */
+// Response for content generation
 @JsonCodec
 case class GenerateContentResponse(
-  candidates: Seq[Candidate]
+  candidates: Seq[Candidate] // List of candidate contents
 )
 
-/**
- * Represents a single content element in a conversation or prompt.
- * Used for structuring input to the model.
- *
- * @param role Identifies the source of the content (e.g., "user", "assistant")
- * @param parts The actual content broken into parts
- */
+// Item of content with a role and parts
 @JsonCodec
 case class ContentItem(
-  role: String,
-  parts: Seq[Part]
+  role: String, // Role of the content item (e.g., user, assistant)
+  parts: Seq[Part] // Parts of the content
 )
 
-/**
- * Request structure for content generation.
- * Contains the input content items for the model.
- *
- * @param contents Sequence of content items forming the input
- */
+// Request to generate content
 @JsonCodec
 case class GenerateContentRequest(
-  contents: Seq[ContentItem]
+  contents: Seq[ContentItem] // Contents to be used for generation
 )
 
-/**
- * Request structure for token counting.
- * Can accept either direct content or a full generation request.
- *
- * @param contents Optional sequence of content items to count tokens for
- * @param generateContentRequest Optional full generation request to count tokens for
- */
+// Request to count tokens
 @JsonCodec
 case class CountTokensRequest(
-  contents: Option[Seq[ContentItem]] = None,
-  generateContentRequest: Option[GenerateContentRequest] = None
+  contents: Option[Seq[ContentItem]] = None, // Optional contents for token counting
+  generateContentRequest: Option[GenerateContentRequest] = None // Optional content generation request
 )
 
-/**
- * Response from the token counting endpoint.
- * Provides the total number of tokens in the input.
- *
- * @param totalTokens The total number of tokens counted
- */
+// Response for token count
 @JsonCodec
-case class TokenCountResponse(totalTokens: Int)
+case class TokenCountResponse(totalTokens: Int) // Total number of tokens counted

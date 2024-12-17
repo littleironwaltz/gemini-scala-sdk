@@ -1,140 +1,295 @@
 # Gemini API Scala SDK
 
-A Scala-based, asynchronous SDK for interacting with Google's Generative Language Gemini API. This SDK provides a simple and type-safe way to:
-
-- Retrieve a list of available models
-- Fetch detailed information about a specific model
-- Generate content based on user prompts
-- Count tokens in a given text
-
-All requests are handled asynchronously using [STTP](https://sttp.softwaremill.com/) and Circe for JSON serialization/deserialization.
+A Scala-based asynchronous SDK for interacting with Google's Generative Language Gemini API. This SDK provides a simple and type-safe way to interact with Gemini's powerful language models.
 
 ## Features
 
-- **Asynchronous I/O**: Non-blocking HTTP calls using `sttp` and `AsyncHttpClientFutureBackend`.
-- **Type-safe Models**: Automatically derived JSON models with Circe.
-- **Error Handling**: Distinct error types (`GeminiError`) for HTTP and JSON parsing errors.
-- **Easy Configuration**: Load your API key and other settings from `application.conf`.
-- **Logging**: Configurable logging via Logback and Scala Logging.
-- **Testable**: Comes with basic ScalaTest specs and a sample test class. Easily integrated into CI pipelines.
+- **Fully Asynchronous**: Built on STTP and Scala Futures for non-blocking operations.
+- **Type-safe Models**: Comprehensive case classes and Circe codecs for all API models.
+- **Structured Error Handling**: Provides detailed context for errors with structured types.
+- **Configurable**: Supports environment variables and HOCON configuration files.
+- **Production Ready**: Includes logging, proper resource management, and comprehensive tests.
+- **Easy Integration**: Simple API methods to get models, generate content, and count tokens.
 
 ## Table of Contents
 
-- [Requirements](#requirements)
 - [Installation](#installation)
+- [Quick Start](#quick-start)
 - [Configuration](#configuration)
 - [Usage](#usage)
+  - [Fetching Models](#fetching-models)
+  - [Generating Content](#generating-content)
+  - [Counting Tokens](#counting-tokens)
+- [Error Handling](#error-handling)
 - [Testing](#testing)
+- [Project Structure](#project-structure)
 - [Contributing](#contributing)
 - [License](#license)
-
-## Requirements
-
-- Scala 2.13 or later
-- sbt 1.0 or later
-- A valid Gemini API key from Google (see [Google Generative AI Developer Guide](https://cloud.google.com/generative-ai/) for details on obtaining an API key)
+- [Acknowledgments](#acknowledgments)
 
 ## Installation
 
-Clone this repository:
+### SBT Dependency
+
+Add the following dependency to your `build.sbt` file:
+
+```scala
+libraryDependencies += "com.example.gemini" %% "gemini-scala-sdk" % "1.0.0"
+```
+
+Ensure your `build.sbt` includes the necessary resolver and Scala version:
+
+```scala
+scalaVersion := "2.13.12"
+
+resolvers += "Sonatype OSS Snapshots" at "https://oss.sonatype.org/content/repositories/snapshots"
+```
+
+## Quick Start
+
+### Clone the Repository
 
 ```bash
-git clone https://github.com/your-username/gemini-scala-sdk.git
+git clone https://github.com/yourusername/gemini-scala-sdk.git
 cd gemini-scala-sdk
 ```
 
-Build the project:
+### Set Your API Key
+
+The SDK requires a Gemini API key. You can set it via environment variables or configuration files.
+
+- **Environment Variable**:
+
+  ```bash
+  export APP_GEMINI_API_KEY="your-api-key"
+  ```
+
+- **Configuration File** (`src/main/resources/application.conf`):
+
+  ```hocon
+  app.gemini.apiKey = "your-api-key"
+  ```
+
+### Build and Run Tests
+
+Build the project and run the test suite to ensure everything is set up correctly.
 
 ```bash
-sbt update
-sbt compile
+sbt clean compile test
 ```
 
 ## Configuration
 
-Place your Gemini API key in `src/main/resources/application.conf`:
+The SDK can be configured using environment variables or a HOCON configuration file (`application.conf`). The configuration allows you to set parameters like API key, base URL, thread pool size, and request timeout.
+
+### `application.conf`
 
 ```hocon
 app {
   gemini {
-    apiKey = "YOUR_API_KEY"
-    baseUrl = "https://generativelanguage.googleapis.com/v1beta"
+    apiKey = ${?APP_GEMINI_API_KEY}        # Gemini API Key
+    baseUrl = ${?APP_GEMINI_BASEURL}       # Base URL for the API
+    threadPoolSize = ${?APP_GEMINI_THREADPOOL_SIZE}       # Thread pool size for async operations
+    requestTimeoutMillis = ${?APP_GEMINI_TIMEOUT_MS}      # Timeout for API requests
   }
+}
+
+logger {
+  level = ${?LOGGER_LEVEL}                 # Logging level (e.g., INFO, DEBUG)
 }
 ```
 
-**Note:** For security and best practices, it’s recommended to use environment variables or a secret manager in production environments rather than committing your API key to the repository.
+### Environment Variables
 
-You can also customize logging by modifying `src/main/resources/logback.xml`.
+- `APP_GEMINI_API_KEY`: Your Gemini API key.
+- `APP_GEMINI_BASEURL`: Base URL for the Gemini API.
+- `APP_GEMINI_THREADPOOL_SIZE`: Number of threads for the executor service.
+- `APP_GEMINI_TIMEOUT_MS`: Timeout in milliseconds for API requests.
+- `LOGGER_LEVEL`: Logging level for the application.
 
 ## Usage
 
-### Running the Sample Script
-
-`TestAsyncGeminiSDK.scala` demonstrates basic usage:
-
-```bash
-sbt "runMain com.example.gemini.TestAsyncGeminiSDK"
-```
-
-This will:
-
-1. Fetch available models
-2. Fetch details of a specific model
-3. Generate content for a given prompt
-4. Count tokens for a given text
-
-The output will appear on the console, formatted by the logging configuration.
-
-### Integrating into Your Code
-
-You can integrate the SDK by importing the relevant classes and invoking methods from `AsyncGeminiAPI`:
+### Import the SDK
 
 ```scala
 import com.example.gemini._
+```
 
+### Initialize the API Client
+
+```scala
 import scala.concurrent.ExecutionContext.Implicits.global
-import scala.concurrent.Future
 
-val apiKey = ConfigLoader.apiKey // or load from env variable
-val modelName = "models/gemini-2.0-flash-exp"
+val api = AsyncGeminiAPI.default
+val apiKey = sys.env.getOrElse("APP_GEMINI_API_KEY", "your-api-key")
+```
 
-// Example: Get models
-val modelsFuture: Future[Either[GeminiError, ModelList]] = AsyncGeminiAPI.getModels(apiKey)
-modelsFuture.map {
+### Fetching Models
+
+To retrieve the list of available models:
+
+```scala
+api.getModels(apiKey).map {
   case Right(modelList) =>
-    println("Available models:")
-    modelList.models.foreach(m => println(m.name))
+    modelList.models.foreach { model =>
+      println(s"Model Name: ${model.name}, Display Name: ${model.displayName}")
+    }
   case Left(error) =>
-    println(s"Failed to fetch models: ${error.message}")
+    println(s"Error fetching models: ${error.message}")
+}
+```
+
+### Generating Content
+
+Generate content using a specific model:
+
+```scala
+val modelName = "models/gemini-2.0-flash-exp"
+val prompt = "What is the capital of France?"
+
+api.generateContent(modelName, prompt, config = None, apiKey).map {
+  case Right(response) =>
+    val generatedText = response.candidates.headOption
+      .flatMap(_.content.parts.headOption)
+      .map(_.text)
+      .getOrElse("No content generated.")
+    println(s"Generated Text: $generatedText")
+  case Left(error) =>
+    println(s"Error generating content: ${error.message}")
+}
+```
+
+### Counting Tokens
+
+Count tokens for a given text input:
+
+```scala
+val textToCount = "Hello, how are you?"
+
+api.countTokens(modelName, textToCount, apiKey).map {
+  case Right(tokenCountResponse) =>
+    println(s"Total Tokens: ${tokenCountResponse.totalTokens}")
+  case Left(error) =>
+    println(s"Error counting tokens: ${error.message}")
+}
+```
+
+## Error Handling
+
+The SDK provides structured error types to help you handle exceptions and errors gracefully.
+
+```scala
+sealed trait GeminiError {
+  def message: String
+  def errorCode: ErrorCode
+}
+
+case class HttpErrorStatus(code: Int, body: String) extends GeminiError
+case class JsonDeserializationError(original: String, cause: String) extends GeminiError
+case class UnexpectedError(cause: String) extends GeminiError
+```
+
+Example of handling errors:
+
+```scala
+api.getModels(apiKey).map {
+  case Right(modelList) =>
+    // Process models
+  case Left(error: HttpErrorStatus) =>
+    println(s"HTTP Error: ${error.code}, Body: ${error.body}")
+  case Left(error: JsonDeserializationError) =>
+    println(s"Deserialization Error: ${error.cause}")
+  case Left(error) =>
+    println(s"An unexpected error occurred: ${error.message}")
 }
 ```
 
 ## Testing
 
-The SDK includes a basic test suite (`AsyncGeminiAPISpec.scala`) using ScalaTest:
+The project includes a comprehensive set of tests using ScalaTest. Tests cover successful API interactions as well as error handling scenarios. Mocked HTTP responses are used to simulate API responses.
+
+### Running Tests
 
 ```bash
 sbt test
 ```
 
-**Note:** The existing tests make real API calls. For automated CI testing, consider using mock servers or integration tests that run with controlled responses. You will need a valid API key and network access to pass these tests.
+### Sample Test Specification
+
+```scala
+class AsyncGeminiAPISpec extends AsyncWordSpec with Matchers {
+  "AsyncGeminiAPI" should {
+    "retrieve models successfully" in {
+      // Test implementation
+    }
+    // Additional test cases
+  }
+}
+```
+
+## Project Structure
+
+```
+gemini-scala-sdk/
+├── build.sbt
+├── src/
+│   ├── main/
+│   │   ├── resources/
+│   │   │   ├── application.conf
+│   │   │   └── logback.xml
+│   │   └── scala/
+│   │       └── com/
+│   │           └── example/
+│   │               └── gemini/
+│   │                   ├── AsyncGeminiAPI.scala
+│   │                   ├── ConfigLoader.scala
+│   │                   ├── GeminiError.scala
+│   │                   ├── GeminiModels.scala
+│   │                   └── TestAsyncGeminiSDK.scala
+│   └── test/
+│       └── scala/
+│           └── com/
+│               └── example/
+│                   └── gemini/
+│                       └── AsyncGeminiAPISpec.scala
+```
 
 ## Contributing
 
-Contributions are welcome! Feel free to:
+We welcome contributions to the project! To contribute:
 
-- Fork this repository
-- Create a feature branch (`git checkout -b feature/my-new-feature`)
-- Commit your changes (`git commit -am 'Add new feature'`)
-- Push to the branch (`git push origin feature/my-new-feature`)
-- Open a Pull Request
+1. Fork the repository on GitHub.
+2. Create a feature branch:
 
-Before submitting a PR, please ensure:
-- Code is formatted consistently (`scalafmt`/`scalastyle` recommended).
-- Tests pass locally.
-- Documentation is updated if needed.
+   ```bash
+   git checkout -b feature/your-feature-name
+   ```
+
+3. Commit your changes:
+
+   ```bash
+   git commit -am 'Add your feature'
+   ```
+
+4. Push to your branch:
+
+   ```bash
+   git push origin feature/your-feature-name
+   ```
+
+5. Open a Pull Request on GitHub.
 
 ## License
 
-This project is licensed under the [MIT License](LICENSE). Feel free to use, modify, and distribute as allowed by the license.
+This project is licensed under the MIT License. See the [LICENSE](LICENSE) file for details.
+
+## Acknowledgments
+
+- Built with [STTP](https://sttp.softwaremill.com/en/latest/) for HTTP communication.
+- JSON parsing and encoding with [Circe](https://circe.github.io/circe/).
+- Configuration management using [Typesafe Config](https://github.com/lightbend/config).
+- Logging with [Scala Logging](https://github.com/lightbend/scala-logging) and [Logback](http://logback.qos.ch/).
+
+---
+
+*Note: This SDK is not an official Google product and is maintained independently.*

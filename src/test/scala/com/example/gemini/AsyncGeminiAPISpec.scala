@@ -2,75 +2,133 @@ package com.example.gemini
 
 import org.scalatest.matchers.should.Matchers
 import org.scalatest.wordspec.AsyncWordSpec
-import scala.concurrent.Future
+import sttp.client3._
+import sttp.client3.testing._
+import io.circe.syntax._
+import scala.concurrent.ExecutionContext
+import sttp.model.StatusCode
 
-/**
- * Integration test suite for AsyncGeminiAPI.
- * Tests the actual interaction with the Gemini API endpoints.
- *
- * Important Notes:
- * - These tests make real API calls to the Gemini service
- * - A valid API key must be configured in application.conf
- * - For production environments, consider mocking the HTTP responses instead
- */
 class AsyncGeminiAPISpec extends AsyncWordSpec with Matchers {
+  implicit val ec: ExecutionContext = ExecutionContext.global
 
-  val apiKey = ConfigLoader.apiKey
+  private val mockBackend = SttpBackendStub.asynchronousFuture
 
-  "AsyncGeminiAPI" should {
-    /**
-     * Tests the model listing functionality.
-     * Verifies that the API can successfully retrieve a list of available models.
-     */
+  // Sample JSON responses for testing
+  private val sampleModelListJson = ModelList(Seq(ModelInfo("models/gemini-2.0-test", "Gemini Test Model", "A test model", 4096, 2048))).asJson
+  private val sampleModelInfoJson = ModelInfo("models/gemini-2.0-test", "Gemini Test Model", "A test model", 4096, 2048).asJson
+  private val sampleGenerateJson = GenerateContentResponse(
+    candidates = Seq(Candidate(Content(Seq(Part("London")))))
+  ).asJson
+  private val sampleTokenCountJson = TokenCountResponse(3).asJson
+
+  // Stubbed backend to simulate API responses
+  private val stubbedBackend = mockBackend
+    .whenRequestMatches(_.uri.path.endsWith(List("models")))
+    .thenRespond(sampleModelListJson.toString())
+    .whenRequestMatches(_.uri.path.contains("gemini-2.0-test"))
+    .thenRespond(sampleModelInfoJson.toString())
+    .whenRequestMatchesPartial {
+      case req if req.uri.path.lastOption.exists(_.endsWith(":generateContent")) =>
+        Response.ok(sampleGenerateJson.toString())
+      case req if req.uri.path.lastOption.exists(_.endsWith(":countTokens")) =>
+        Response.ok(sampleTokenCountJson.toString())
+    }
+
+  private val mockApi = new AsyncGeminiAPI()(ec, stubbedBackend)
+  val testApiKey = "MOCK_API_KEY"
+
+  "AsyncGeminiAPI (mocked)" should {
+    // Test for retrieving models
     "retrieve models successfully" in {
-      AsyncGeminiAPI.getModels(apiKey).map {
+      mockApi.getModels(testApiKey).map {
         case Right(modelList) =>
           modelList.models should not be empty
+          modelList.models.head.name shouldBe "models/gemini-2.0-test"
         case Left(error) =>
-          fail(s"Expected successful model list, but got error: ${error.message}")
+          fail(s"Expected model list, got error: ${error.message}")
       }
     }
 
-    /**
-     * Tests the model details retrieval functionality.
-     * Verifies that the API can fetch detailed information about a specific model.
-     */
+    // Test for retrieving model details
     "retrieve model details successfully" in {
-      val testModelName = "models/gemini-2.0-flash-exp"
-      AsyncGeminiAPI.getModelDetails(testModelName, apiKey).map {
+      mockApi.getModelDetails("models/gemini-2.0-test", testApiKey).map {
         case Right(info) =>
           info.name should include("gemini")
         case Left(error) =>
-          fail(s"Expected successful model details, but got error: ${error.message}")
+          fail(s"Expected model details, got error: ${error.message}")
       }
     }
 
-    /**
-     * Tests the content generation functionality.
-     * Verifies that the API can generate content from a given prompt.
-     */
-    "generate content" in {
-      val prompt = "What is the capital of France?"
-      AsyncGeminiAPI.generateContent("models/gemini-2.0-flash-exp", prompt, None, apiKey).map {
+    // Test for generating content
+    "generate content successfully" in {
+      mockApi.generateContent("models/gemini-2.0-test", "What is the capital of France?", None, testApiKey).map {
         case Right(response) =>
           response.candidates should not be empty
+          response.candidates.head.content.parts.head.text shouldBe "London"
         case Left(error) =>
-          fail(s"Expected successful generation, but got error: ${error.message}")
+          fail(s"Expected successful generation, got error: ${error.message}")
       }
     }
 
-    /**
-     * Tests the token counting functionality.
-     * Verifies that the API can accurately count tokens in a given text.
-     */
-    "count tokens" in {
-      val text = "Hello world"
-      AsyncGeminiAPI.countTokens("models/gemini-2.0-flash-exp", text, apiKey).map {
+    // Test for counting tokens
+    "count tokens successfully" in {
+      mockApi.countTokens("models/gemini-2.0-test", "Hello world", testApiKey).map {
         case Right(tokenCount) =>
           tokenCount.totalTokens should be > 0
         case Left(error) =>
-          fail(s"Expected token count, but got error: ${error.message}")
+          fail(s"Expected token count, got error: ${error.message}")
       }
+    }
+  }
+
+  "AsyncGeminiAPI error handling (mocked)" should {
+    // Test for handling HTTP errors
+    "handle HTTP errors properly" in {
+      val errorBackend = mockBackend.whenAnyRequest.thenRespondWithCode(StatusCode.InternalServerError, "Internal Server Error")
+      val apiWithError = new AsyncGeminiAPI()(ec, errorBackend)
+
+      apiWithError.getModels(testApiKey).map {
+        case Left(err) =>
+          err.message should include("HTTP error: 500")
+        case Right(_) =>
+          fail("Expected HTTP error but got success")
+      }
+    }
+
+    // Test for handling JSON deserialization errors
+    "handle JSON deserialization errors properly" in {
+      val invalidJsonBackend = mockBackend.whenAnyRequest.thenRespond("{ invalid_json }")
+      val apiWithInvalidJson = new AsyncGeminiAPI()(ec, invalidJsonBackend)
+
+      apiWithInvalidJson.getModels(testApiKey).map {
+        case Left(err) =>
+          err.message should include("Deserialization error")
+        case Right(_) =>
+          fail("Expected JSON deserialization error but got success")
+      }
+    }
+  }
+
+  "AsyncGeminiAPI with no API key" should {
+    // Test for authentication failure
+    "fail to authenticate (simulated)" in {
+      val noAuthBackend = mockBackend.whenAnyRequest.thenRespondWithCode(StatusCode.Unauthorized, "Unauthorized")
+      val apiNoAuth = new AsyncGeminiAPI()(ec, noAuthBackend)
+
+      apiNoAuth.getModels("INVALID_KEY").map {
+        case Left(err) =>
+          err.message should include("HTTP error: 401")
+        case Right(_) =>
+          fail("Expected authentication error but got success")
+      }
+    }
+  }
+
+  "AsyncGeminiAPI resource management" should {
+    // Test for closing backend without errors
+    "close backend without errors" in {
+      noException should be thrownBy mockApi.closeBackend()
+      succeed
     }
   }
 }
