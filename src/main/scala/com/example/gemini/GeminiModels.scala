@@ -3,13 +3,19 @@ package com.example.gemini
 
 import io.circe.generic.JsonCodec
 
-// Configuration for text generation
+/**
+ * Configuration for controlling the text generation behavior.
+ * - temperature: Higher values (0.7-1.0) make output more creative but less focused
+ * - topP: Controls diversity via nucleus sampling (0.9 recommended for natural language)
+ * - topK: Limits vocabulary diversity to top K tokens (40 is balanced default)
+ * - maxOutputTokens: Hard limit on response length for safety and resource management
+ */
 @JsonCodec
 case class GenerationConfig(
-  temperature: Double = 0.7, // Controls randomness in generation
-  topP: Double = 0.9, // Nucleus sampling parameter
-  topK: Int = 40, // Top-K sampling parameter
-  maxOutputTokens: Int = 1024 // Maximum number of tokens in output
+  temperature: Double = 0.7,
+  topP: Double = 0.9,
+  topK: Int = 40,
+  maxOutputTokens: Int = 1024
 )
 
 // Represents a chat message
@@ -30,13 +36,19 @@ case class ModelInfo(
 @JsonCodec
 case class ModelList(models: Seq[ModelInfo])
 
-// Part of the content
+/**
+ * Common trait for types containing text parts.
+ * Used by Content and ContentItem to share functionality.
+ */
+private[gemini] trait HasParts {
+  def parts: Seq[Part]
+}
+
 @JsonCodec
 case class Part(text: String)
 
-// Content consisting of multiple parts
 @JsonCodec
-case class Content(parts: Seq[Part])
+case class Content(parts: Seq[Part]) extends HasParts
 
 // Safety rating for content
 @JsonCodec
@@ -58,7 +70,11 @@ case class CitationMetadata(
   citations: Seq[Citation] // List of citations
 )
 
-// Candidate content with optional safety ratings and citation metadata
+/**
+ * Represents a generated content candidate with optional safety ratings and citations.
+ * Safety ratings are kept as Option[Seq] since their absence has semantic meaning
+ * different from an empty list (None indicates no rating performed).
+ */
 @JsonCodec
 case class Candidate(
   content: Content,
@@ -72,12 +88,15 @@ case class GenerateContentResponse(
   candidates: Seq[Candidate] // List of candidate contents
 )
 
-// Item of content with a role and parts
+/**
+ * Represents a content item with a specific role in the conversation.
+ * Used in both content generation and token counting requests.
+ */
 @JsonCodec
 case class ContentItem(
-  role: String, // Role of the content item (e.g., user, assistant)
-  parts: Seq[Part] // Parts of the content
-)
+  role: String,
+  parts: Seq[Part]
+) extends HasParts
 
 // Request to generate content
 @JsonCodec
@@ -85,11 +104,15 @@ case class GenerateContentRequest(
   contents: Seq[ContentItem] // Contents to be used for generation
 )
 
-// Request to count tokens
+/**
+ * Request for counting tokens in content.
+ * Contents is kept as Option[Seq] since None has different semantic meaning
+ * from an empty sequence in the API contract.
+ */
 @JsonCodec
 case class CountTokensRequest(
-  contents: Option[Seq[ContentItem]] = None, // Optional contents for token counting
-  generateContentRequest: Option[GenerateContentRequest] = None // Optional content generation request
+  contents: Option[Seq[ContentItem]] = None,
+  generateContentRequest: Option[GenerateContentRequest] = None
 )
 
 // Response for token count
