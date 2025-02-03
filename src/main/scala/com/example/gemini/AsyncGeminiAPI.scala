@@ -14,11 +14,47 @@ class AsyncGeminiAPI(
     backend: SttpBackend[Future, Any]
 ) extends LazyLogging {
 
+  type GeminiResult[T] = Future[Either[GeminiError, T]]
+  type GeminiResponse[T] = Response[Either[ResponseException[String, Error], T]]
+
   private val baseUrl = ConfigLoader.baseUrl
+
+  private def normalizeModelName(modelName: String): String = {
+    val prefix = "models/"
+    if (modelName.startsWith(prefix)) modelName.stripPrefix(prefix)
+    else modelName
+  }
+
+  private def buildGetRequest[T: Decoder](path: String, apiKey: String): Request[Either[ResponseException[String, Error], T]] = {
+    basicRequest
+      .get(uri"$baseUrl/$path?key=$apiKey")
+      .response(asJson[T])
+  }
+
+  private def buildPostRequest[T: Decoder, B: Encoder](path: String, body: B, apiKey: String): Request[Either[ResponseException[String, Error], T]] = {
+    basicRequest
+      .post(uri"$baseUrl/$path?key=$apiKey")
+      .header("Content-Type", "application/json")
+      .body(body)
+      .response(asJson[T])
+  }
+
+  private def logError(context: String, error: GeminiError): Unit = {
+    val sanitizedMessage = error.message.replaceAll("key=[^&]*", "key=REDACTED")
+    logger.error(s"[$context] $sanitizedMessage")
+  }
+
+  private def handleRequest[T](request: Request[Either[ResponseException[String, Error], T]], context: String): GeminiResult[T] = {
+    request.send(backend).map { resp =>
+      val result = handleResponse(resp, context)
+      result.left.foreach(e => logError(context, e))
+      result
+    }
+  }
 
   // Handle HTTP response and map to either GeminiError or the expected type
   private def handleResponse[T](
-      response: Response[Either[ResponseException[String, Error], T]],
+      response: GeminiResponse[T],
       requestDescription: String
   ): Either[GeminiError, T] = {
     response.body match {
@@ -36,106 +72,80 @@ class AsyncGeminiAPI(
   }
 
   // Fetch list of models
-  def getModels(apiKey: String): Future[Either[GeminiError, ModelList]] = {
-    val requestDescription = "GET /models"
-    val request = basicRequest
-      .get(uri"$baseUrl/models?key=$apiKey")
-      .response(asJson[ModelList])
-
-    request.send(backend).map { resp =>
-      val result = handleResponse(resp, requestDescription)
-      result.left.foreach(e => logger.error(s"[getModels] ${e.message}")) // Log error if any
-      result
-    }
+  def getModels(apiKey: String): GeminiResult[ModelList] = {
+    handleRequest(
+      buildGetRequest[ModelList]("models", apiKey),
+      "GET /models"
+    )
   }
 
-  // Fetch details of a specific model
-  def getModelDetails(modelName: String, apiKey: String): Future[Either[GeminiError, ModelInfo]] = {
-    val pureModelName = modelName.stripPrefix("models/")
-    val requestDescription = s"GET /models/$pureModelName"
-    val request = basicRequest
-      .get(uri"$baseUrl/models/$pureModelName?key=$apiKey")
-      .response(asJson[ModelInfo])
-
-    request.send(backend).map { resp =>
-      val result = handleResponse(resp, requestDescription)
-      result.left.foreach(e => logger.error(s"[getModelDetails] ${e.message}")) // Log error if any
-      result
-    }
+  def getModelDetails(modelName: String, apiKey: String): GeminiResult[ModelInfo] = {
+    val name = normalizeModelName(modelName)
+    handleRequest(
+      buildGetRequest[ModelInfo](s"models/$name", apiKey),
+      s"GET /models/$name"
+    )
   }
 
-  // Generate content using a model
   def generateContent(
       modelName: String,
       prompt: String,
       config: Option[GenerationConfig],
       apiKey: String
-  ): Future[Either[GeminiError, GenerateContentResponse]] = {
-    val pureModelName = modelName.stripPrefix("models/")
+  ): GeminiResult[GenerateContentResponse] = {
+    val name = normalizeModelName(modelName)
     val requestBody = GenerateContentRequest(
-      contents = Seq(
-        ContentItem(
-          role = "user",
-          parts = Seq(
-            Part(text = prompt)
-          )
-        )
-      )
+      contents = Seq(ContentItem("user", Seq(Part(prompt))))
     )
-    val requestDescription = s"POST /models/$pureModelName:generateContent"
-
-    val request = basicRequest
-      .post(uri"$baseUrl/models/$pureModelName:generateContent?key=$apiKey")
-      .header("Content-Type", "application/json")
-      .body(requestBody)
-      .response(asJson[GenerateContentResponse])
-
-    request.send(backend).map { resp =>
-      val result = handleResponse(resp, requestDescription)
-      result.left.foreach(e => logger.error(s"[generateContent] ${e.message}")) // Log error if any
-      result
-    }
+    handleRequest(
+      buildPostRequest[GenerateContentResponse, GenerateContentRequest](
+        s"models/$name:generateContent",
+        requestBody,
+        apiKey
+      ),
+      s"POST /models/$name:generateContent"
+    )
   }
 
-  // Count tokens in a given text
   def countTokens(
       modelName: String,
       text: String,
       apiKey: String
-  ): Future[Either[GeminiError, TokenCountResponse]] = {
-    val pureModelName = modelName.stripPrefix("models/")
-    val requestDescription = s"POST /models/$pureModelName:countTokens"
+  ): GeminiResult[TokenCountResponse] = {
+    val name = normalizeModelName(modelName)
     val requestBody = CountTokensRequest(
-      contents = Some(Seq(
-        ContentItem(
-          role = "user",
-          parts = Seq(Part(text = text))
-        )
-      )),
+      contents = Some(Seq(ContentItem("user", Seq(Part(text))))),
       generateContentRequest = None
     )
-
-    val request = basicRequest
-      .post(uri"$baseUrl/models/$pureModelName:countTokens?key=$apiKey")
-      .header("Content-Type", "application/json")
-      .body(requestBody)
-      .response(asJson[TokenCountResponse])
-
-    request.send(backend).map { resp =>
-      val result = handleResponse(resp, requestDescription)
-      result.left.foreach(e => logger.error(s"[countTokens] ${e.message}")) // Log error if any
-      result
-    }
+    handleRequest(
+      buildPostRequest[TokenCountResponse, CountTokensRequest](
+        s"models/$name:countTokens",
+        requestBody,
+        apiKey
+      ),
+      s"POST /models/$name:countTokens"
+    )
   }
 
-  // Close the backend and shutdown the execution context if applicable
+  /**
+   * Closes the backend and performs cleanup of resources.
+   * 
+   * This method:
+   * 1. Closes the STTP backend to release HTTP client resources
+   * 2. If the ExecutionContext is an ExecutionContextExecutorService,
+   *    shuts it down to release thread pool resources
+   * 
+   * Note: External ExecutionContexts are not shut down to prevent
+   * affecting other parts of the application.
+   */
   def closeBackend(): Unit = {
     backend.close()
     ec match {
       case eces: ExecutionContextExecutorService =>
-        eces.shutdown() // Shutdown if it's an ExecutionContextExecutorService
+        logger.info("Shutting down executor service")
+        eces.shutdown()
       case _ =>
-        logger.debug("ExecutionContext is external; not shutting it down.") // Log if not shutting down
+        logger.debug("ExecutionContext is external; not shutting it down.")
     }
   }
 }
