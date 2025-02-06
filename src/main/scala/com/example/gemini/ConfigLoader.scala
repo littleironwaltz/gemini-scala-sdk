@@ -8,23 +8,25 @@ object ConfigLoader extends LazyLogging {
   private val config: Config = ConfigFactory.load() // Load configuration from application.conf
 
   // Retrieve a string value from the config, with a default fallback
-  private def getString(path: String, default: String): String = {
-    Try(config.getString(path)).getOrElse {
-      logger.warn(s"Config key '$path' not found or invalid. Falling back to default: '$default'")
-      default
-    }
+  private def getConfigValue[T](
+    path: String,
+    default: T,
+    getter: String => T
+  ): T = {
+    Try(getter(path)).fold(
+      error => {
+        logger.warn(s"Config key '$path' not found or invalid. Falling back to default: '$default'", error)
+        default
+      },
+      value => value
+    )
   }
 
-  // Retrieve an integer value from the config, with a default fallback
-  private def getInt(path: String, default: Int): Int = {
-    val valueTry = Try(config.getInt(path))
-    valueTry match {
-      case scala.util.Success(value) => value
-      case Failure(_) =>
-        logger.warn(s"Config key '$path' not found or invalid. Falling back to default: '$default'")
-        default
-    }
-  }
+  private def getString(path: String, default: String): String =
+    getConfigValue(path, default, config.getString)
+
+  private def getInt(path: String, default: Int): Int =
+    getConfigValue(path, default, config.getInt)
 
   // Lazy-loaded configuration values
   lazy val apiKey: String = {
