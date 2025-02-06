@@ -23,16 +23,14 @@ class AsyncGeminiAPISpec extends AsyncWordSpec with Matchers {
 
   // Stubbed backend to simulate API responses
   private val stubbedBackend = mockBackend
-    .whenRequestMatches(_.uri.path.endsWith(List("models")))
+    .whenRequestMatches(req => req.method.method == "GET" && req.uri.path.endsWith(List("models")))
     .thenRespond(sampleModelListJson.toString())
-    .whenRequestMatches(_.uri.path.contains("gemini-2.0-test"))
+    .whenRequestMatches(req => req.method.method == "GET" && req.uri.toString.contains("models%2Fgemini-2.0-test") && !req.uri.path.lastOption.exists(p => p.endsWith(":generateContent") || p.endsWith(":countTokens")))
     .thenRespond(sampleModelInfoJson.toString())
-    .whenRequestMatchesPartial {
-      case req if req.uri.path.lastOption.exists(_.endsWith(":generateContent")) =>
-        Response.ok(sampleGenerateJson.toString())
-      case req if req.uri.path.lastOption.exists(_.endsWith(":countTokens")) =>
-        Response.ok(sampleTokenCountJson.toString())
-    }
+    .whenRequestMatches(req => req.method.method == "POST" && req.uri.path.lastOption.exists(_.endsWith(":generateContent")))
+    .thenRespond(sampleGenerateJson.toString())
+    .whenRequestMatches(req => req.method.method == "POST" && req.uri.path.lastOption.exists(_.endsWith(":countTokens")))
+    .thenRespond(sampleTokenCountJson.toString())
 
   private val mockApi = new AsyncGeminiAPI()(ec, stubbedBackend)
   val testApiKey = "MOCK_API_KEY"

@@ -3,21 +3,26 @@ package com.example.gemini
 import sttp.client3._
 import sttp.client3.circe._
 import sttp.client3.asynchttpclient.future.AsyncHttpClientFutureBackend
+import io.circe.{Encoder, Decoder, Error}
 import io.circe.generic.auto._
-import io.circe.Error
+import io.circe.syntax._
 import scala.concurrent.{Future, ExecutionContext, ExecutionContextExecutorService}
-import com.typesafe.scalalogging.LazyLogging
+import com.example.gemini.logging.GeminiLogger
 import java.util.concurrent.Executors
 
 class AsyncGeminiAPI(
     implicit val ec: ExecutionContext,
     backend: SttpBackend[Future, Any]
-) extends LazyLogging {
+) extends GeminiLogger {
 
   type GeminiResult[T] = Future[Either[GeminiError, T]]
   type GeminiResponse[T] = Response[Either[ResponseException[String, Error], T]]
 
   private val baseUrl = ConfigLoader.baseUrl
+
+  private case class RequestConfig(path: String, apiKey: String) {
+    def buildUri = uri"$baseUrl/$path?key=$apiKey"
+  }
 
   private def normalizeModelName(modelName: String): String = {
     val prefix = "models/"
@@ -25,26 +30,29 @@ class AsyncGeminiAPI(
     else modelName
   }
 
-  private def buildGetRequest[T: Decoder](path: String, apiKey: String): Request[Either[ResponseException[String, Error], T]] = {
-    basicRequest
-      .get(uri"$baseUrl/$path?key=$apiKey")
-      .response(asJson[T])
+  private def executeRequest[T: Decoder, B: Encoder](
+      config: RequestConfig,
+      method: String,
+      body: Option[B] = None
+  ): GeminiResult[T] = {
+    val baseRequest = basicRequest.response(asJson[T])
+    
+    val request = (method, body) match {
+      case ("GET", _) => baseRequest.get(config.buildUri)
+      case ("POST", Some(data)) => baseRequest
+        .post(config.buildUri)
+        .header("Content-Type", "application/json")
+        .body(data.asJson)
+      case ("POST", None) => baseRequest.post(config.buildUri)
+      case (unsupported, _) => throw new IllegalArgumentException(s"Unsupported HTTP method: $unsupported")
+    }
+
+    handleRequest(request, s"$method ${config.path}")
   }
 
-  private def buildPostRequest[T: Decoder, B: Encoder](path: String, body: B, apiKey: String): Request[Either[ResponseException[String, Error], T]] = {
-    basicRequest
-      .post(uri"$baseUrl/$path?key=$apiKey")
-      .header("Content-Type", "application/json")
-      .body(body)
-      .response(asJson[T])
-  }
-
-  private def logError(context: String, error: GeminiError): Unit = {
-    val sanitizedMessage = error.message.replaceAll("key=[^&]*", "key=REDACTED")
-    logger.error(s"[$context] $sanitizedMessage")
-  }
-
-  private def handleRequest[T](request: Request[Either[ResponseException[String, Error], T]], context: String): GeminiResult[T] = {
+  private def handleRequest[T](request: RequestT[Identity, Either[ResponseException[String, Error], T], Any], context: String): GeminiResult[T] = {
+    val Array(method, path) = context.split(" ")
+    logRequest(method, path)
     request.send(backend).map { resp =>
       val result = handleResponse(resp, context)
       result.left.foreach(e => logError(context, e))
@@ -54,36 +62,50 @@ class AsyncGeminiAPI(
 
   // Handle HTTP response and map to either GeminiError or the expected type
   private def handleResponse[T](
-      response: GeminiResponse[T],
+      response: Response[Either[ResponseException[String, Error], T]],
       requestDescription: String
   ): Either[GeminiError, T] = {
     response.body match {
-      case Right(value) => Right(value) // Successful response
+      case Right(value) => Right(value)
       case Left(error) =>
         val statusCode = response.code.code
         val detailedContext = s"Request: $requestDescription, StatusCode: $statusCode"
         error match {
           case HttpError(body, _) =>
-            Left(HttpErrorStatus(statusCode, s"$detailedContext, Body: $body")) // HTTP error
+            Left(HttpErrorStatus(statusCode, s"$detailedContext, Body: $body"))
           case DeserializationException(original, ex) =>
-            Left(JsonDeserializationError(original, s"$detailedContext, Cause: ${ex.getMessage}")) // JSON deserialization error
+            Left(JsonDeserializationError(original, s"$detailedContext, Cause: ${ex.getMessage}"))
         }
     }
   }
 
   // Fetch list of models
+  /**
+   * Retrieves a list of available Gemini models.
+   * Use this to discover supported models and their capabilities.
+   *
+   * @param apiKey API key for authentication
+   * @return Future containing either a GeminiError or list of available models
+   */
   def getModels(apiKey: String): GeminiResult[ModelList] = {
-    handleRequest(
-      buildGetRequest[ModelList]("models", apiKey),
-      "GET /models"
+    executeRequest[ModelList, Unit](
+      RequestConfig("models", apiKey),
+      "GET"
     )
   }
 
+  /**
+   * Fetches detailed information about a specific Gemini model.
+   * Provides model capabilities, limits, and supported features.
+   *
+   * @param modelName Name of the model (with or without 'models/' prefix)
+   * @param apiKey API key for authentication
+   * @return Future containing either a GeminiError or detailed model information
+   */
   def getModelDetails(modelName: String, apiKey: String): GeminiResult[ModelInfo] = {
-    val name = normalizeModelName(modelName)
-    handleRequest(
-      buildGetRequest[ModelInfo](s"models/$name", apiKey),
-      s"GET /models/$name"
+    executeRequest[ModelInfo, Unit](
+      RequestConfig(s"models/${normalizeModelName(modelName)}", apiKey),
+      "GET"
     )
   }
 
@@ -107,6 +129,15 @@ class AsyncGeminiAPI(
     )
   }
 
+  /**
+   * Counts tokens in the provided text using the specified model's tokenizer.
+   * Useful for estimating costs and staying within model input limits.
+   *
+   * @param modelName Name of the model whose tokenizer to use
+   * @param text Text to analyze for token count
+   * @param apiKey API key for authentication
+   * @return Future containing either a GeminiError or token count response
+   */
   def countTokens(
       modelName: String,
       text: String,
@@ -117,13 +148,10 @@ class AsyncGeminiAPI(
       contents = Some(Seq(ContentItem("user", Seq(Part(text))))),
       generateContentRequest = None
     )
-    handleRequest(
-      buildPostRequest[TokenCountResponse, CountTokensRequest](
-        s"models/$name:countTokens",
-        requestBody,
-        apiKey
-      ),
-      s"POST /models/$name:countTokens"
+    executeRequest[TokenCountResponse, CountTokensRequest](
+      RequestConfig(s"models/$name:countTokens", apiKey),
+      "POST",
+      Some(requestBody)
     )
   }
 
