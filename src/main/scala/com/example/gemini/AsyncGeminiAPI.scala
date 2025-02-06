@@ -3,11 +3,13 @@ package com.example.gemini
 import sttp.client3._
 import sttp.client3.circe._
 import sttp.client3.asynchttpclient.future.AsyncHttpClientFutureBackend
+import io.circe.{Encoder, Decoder, Error}
 import io.circe.generic.auto._
-import io.circe.Error
 import scala.concurrent.{Future, ExecutionContext, ExecutionContextExecutorService}
-import com.typesafe.scalalogging.LazyLogging
+import com.example.gemini.logging.GeminiLogger
 import java.util.concurrent.Executors
+import sttp.model.StatusCode
+import sttp.client3.Response
 
 class AsyncGeminiAPI(
     implicit val ec: ExecutionContext,
@@ -49,8 +51,9 @@ class AsyncGeminiAPI(
     handleRequest(request, s"$method ${config.path}")
   }
 
-  private def handleRequest[T](request: Request[Either[ResponseException[String, Error], T]], context: String): GeminiResult[T] = {
-    logRequest(context.split(" ")(0), context.split(" ")(1))
+  private def handleRequest[T](request: Request[Future, Either[ResponseException[String, Error], T]], context: String): GeminiResult[T] = {
+    val Array(method, path) = context.split(" ")
+    logRequest(method, path)
     request.send(backend).map { resp =>
       val result = handleResponse(resp, context)
       result.left.foreach(e => logError(context, e))
@@ -60,19 +63,19 @@ class AsyncGeminiAPI(
 
   // Handle HTTP response and map to either GeminiError or the expected type
   private def handleResponse[T](
-      response: GeminiResponse[T],
+      response: Response[Either[ResponseException[String, Error], T]],
       requestDescription: String
   ): Either[GeminiError, T] = {
     response.body match {
-      case Right(value) => Right(value) // Successful response
+      case Right(value) => Right(value)
       case Left(error) =>
         val statusCode = response.code.code
         val detailedContext = s"Request: $requestDescription, StatusCode: $statusCode"
         error match {
           case HttpError(body, _) =>
-            Left(HttpErrorStatus(statusCode, s"$detailedContext, Body: $body")) // HTTP error
+            Left(HttpErrorStatus(statusCode, s"$detailedContext, Body: $body"))
           case DeserializationException(original, ex) =>
-            Left(JsonDeserializationError(original, s"$detailedContext, Cause: ${ex.getMessage}")) // JSON deserialization error
+            Left(JsonDeserializationError(original, s"$detailedContext, Cause: ${ex.getMessage}"))
         }
     }
   }
@@ -101,9 +104,8 @@ class AsyncGeminiAPI(
    * @return Future containing either a GeminiError or detailed model information
    */
   def getModelDetails(modelName: String, apiKey: String): GeminiResult[ModelInfo] = {
-    val name = normalizeModelName(modelName)
     executeRequest[ModelInfo, Nothing](
-      RequestConfig(s"models/$name", apiKey),
+      RequestConfig(s"models/${normalizeModelName(modelName)}", apiKey),
       "GET"
     )
   }
