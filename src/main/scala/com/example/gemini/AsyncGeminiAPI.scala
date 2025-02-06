@@ -9,8 +9,6 @@ import io.circe.syntax._
 import scala.concurrent.{Future, ExecutionContext, ExecutionContextExecutorService}
 import com.example.gemini.logging.GeminiLogger
 import java.util.concurrent.Executors
-import sttp.model.Uri
-import sttp.client3.circe.asJson
 
 class AsyncGeminiAPI(
     implicit val ec: ExecutionContext,
