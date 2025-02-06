@@ -5,11 +5,12 @@ import sttp.client3.circe._
 import sttp.client3.asynchttpclient.future.AsyncHttpClientFutureBackend
 import io.circe.{Encoder, Decoder, Error}
 import io.circe.generic.auto._
+import io.circe.syntax._
 import scala.concurrent.{Future, ExecutionContext, ExecutionContextExecutorService}
 import com.example.gemini.logging.GeminiLogger
 import java.util.concurrent.Executors
-import sttp.model.StatusCode
-import sttp.client3.Response
+import sttp.model.Uri
+import sttp.client3.circe.asJson
 
 class AsyncGeminiAPI(
     implicit val ec: ExecutionContext,
@@ -31,19 +32,19 @@ class AsyncGeminiAPI(
     else modelName
   }
 
-  private def executeRequest[T: Decoder, B](
+  private def executeRequest[T: Decoder, B: Encoder](
       config: RequestConfig,
       method: String,
       body: Option[B] = None
-  )(implicit encoder: Encoder[B] = null): GeminiResult[T] = {
+  ): GeminiResult[T] = {
     val baseRequest = basicRequest.response(asJson[T])
     
     val request = (method, body) match {
       case ("GET", _) => baseRequest.get(config.buildUri)
-      case ("POST", Some(data)) if encoder != null => baseRequest
+      case ("POST", Some(data)) => baseRequest
         .post(config.buildUri)
         .header("Content-Type", "application/json")
-        .body(data)(encoder, implicitly)
+        .body(data.asJson)
       case ("POST", None) => baseRequest.post(config.buildUri)
       case (unsupported, _) => throw new IllegalArgumentException(s"Unsupported HTTP method: $unsupported")
     }
@@ -51,7 +52,7 @@ class AsyncGeminiAPI(
     handleRequest(request, s"$method ${config.path}")
   }
 
-  private def handleRequest[T](request: Request[Future, Either[ResponseException[String, Error], T]], context: String): GeminiResult[T] = {
+  private def handleRequest[T](request: RequestT[Identity, Either[ResponseException[String, Error], T], Any], context: String): GeminiResult[T] = {
     val Array(method, path) = context.split(" ")
     logRequest(method, path)
     request.send(backend).map { resp =>
@@ -89,7 +90,7 @@ class AsyncGeminiAPI(
    * @return Future containing either a GeminiError or list of available models
    */
   def getModels(apiKey: String): GeminiResult[ModelList] = {
-    executeRequest[ModelList, Nothing](
+    executeRequest[ModelList, Unit](
       RequestConfig("models", apiKey),
       "GET"
     )
@@ -104,7 +105,7 @@ class AsyncGeminiAPI(
    * @return Future containing either a GeminiError or detailed model information
    */
   def getModelDetails(modelName: String, apiKey: String): GeminiResult[ModelInfo] = {
-    executeRequest[ModelInfo, Nothing](
+    executeRequest[ModelInfo, Unit](
       RequestConfig(s"models/${normalizeModelName(modelName)}", apiKey),
       "GET"
     )
