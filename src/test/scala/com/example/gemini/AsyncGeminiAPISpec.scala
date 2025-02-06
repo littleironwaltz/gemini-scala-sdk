@@ -24,7 +24,7 @@ class AsyncGeminiAPISpec extends AsyncWordSpec with Matchers {
   private val stubbedBackend = mockBackend
     .whenRequestMatches(_.uri.path.endsWith(List("models")))
     .thenRespond(sampleModelListJson.toString())
-    .whenRequestMatches(req => req.uri.path.endsWith(List("models", "gemini-2.0-test")))
+    .whenRequestMatches(req => req.uri.toString.contains("models%2Fgemini-2.0-test"))
     .thenRespond(sampleModelInfoJson.toString())
     .whenRequestMatches(req => req.uri.path.lastOption.exists(_.endsWith(":generateContent")))
     .thenRespond(sampleGenerateJson.toString())
