@@ -34,16 +34,40 @@ class AsyncGeminiAPI(
 
   private val baseUrl = ConfigLoader.baseUrl
 
+  /**
+   * Configuration for building API requests.
+   * Encapsulates path and authentication details.
+   * 
+   * @param path API endpoint path
+   * @param apiKey Authentication key
+   */
   private case class RequestConfig(path: String, apiKey: String) {
     def buildUri = uri"$baseUrl/$path?key=$apiKey"
   }
 
+  /**
+   * Normalizes model names by handling optional 'models/' prefix.
+   * Ensures consistent model name format for API requests.
+   * 
+   * @param modelName Raw model name (with or without prefix)
+   * @return Normalized model name without 'models/' prefix
+   */
   private def normalizeModelName(modelName: String): String = {
     val prefix = "models/"
     if (modelName.startsWith(prefix)) modelName.stripPrefix(prefix)
     else modelName
   }
 
+  /**
+   * Executes an HTTP request with proper error handling and logging.
+   *
+   * @param config Request configuration containing path and API key
+   * @param method HTTP method (GET/POST)
+   * @param body Optional request body for POST requests
+   * @tparam T Expected response type with Circe decoder
+   * @tparam B Request body type with Circe encoder
+   * @return Future containing either a GeminiError or successful response
+   */
   private def executeRequest[T: Decoder, B: Encoder](
       config: RequestConfig,
       method: String,
@@ -64,6 +88,15 @@ class AsyncGeminiAPI(
     handleRequest(request, s"$method ${config.path}")
   }
 
+  /**
+   * Handles request execution with logging and error processing.
+   * Logs request details before execution and maps errors appropriately.
+   *
+   * @param request STTP request to execute
+   * @param context Request context for logging (e.g., "GET /models")
+   * @tparam T Expected response type
+   * @return Future containing either a GeminiError or successful response
+   */
   private def handleRequest[T](request: RequestT[Identity, Either[ResponseException[String, Error], T], Any], context: String): GeminiResult[T] = {
     val Array(method, path) = context.split(" ")
     logRequest(method, path)
@@ -75,6 +108,20 @@ class AsyncGeminiAPI(
   }
 
   // Handle HTTP response and map to either GeminiError or the expected type
+  /**
+   * Processes HTTP response and maps errors to domain-specific types.
+   * 
+   * Success case (Right):
+   * - Returns the successfully decoded response
+   * 
+   * Error cases (Left):
+   * - HTTP errors (e.g., 404: "Model not found", 401: "Invalid API key")
+   * - JSON deserialization errors (e.g., unexpected response format)
+   * 
+   * @param response Raw HTTP response from STTP
+   * @param requestDescription Context for error messages
+   * @return Either a GeminiError or successful response
+   */
   private def handleResponse[T](
       response: Response[Either[ResponseException[String, Error], T]],
       requestDescription: String
@@ -101,6 +148,13 @@ class AsyncGeminiAPI(
    * @param apiKey API key for authentication
    * @return Future containing either a GeminiError or list of available models
    */
+  /**
+   * Retrieves a list of available Gemini models.
+   * Use this to discover supported models and their capabilities.
+   * 
+   * @param apiKey API authentication key
+   * @return Future containing either a GeminiError or list of available models
+   */
   def getModels(apiKey: String): GeminiResult[ModelList] = {
     executeRequest[ModelList, Unit](
       RequestConfig("models", apiKey),
@@ -116,6 +170,14 @@ class AsyncGeminiAPI(
    * @param apiKey API key for authentication
    * @return Future containing either a GeminiError or detailed model information
    */
+  /**
+   * Fetches detailed information about a specific Gemini model.
+   * Provides model capabilities, limits, and supported features.
+   * 
+   * @param modelName Name of the model (with or without 'models/' prefix)
+   * @param apiKey API authentication key
+   * @return Future containing either a GeminiError or detailed model information
+   */
   def getModelDetails(modelName: String, apiKey: String): GeminiResult[ModelInfo] = {
     executeRequest[ModelInfo, Unit](
       RequestConfig(s"models/${normalizeModelName(modelName)}", apiKey),
@@ -123,6 +185,18 @@ class AsyncGeminiAPI(
     )
   }
 
+  /**
+   * Generates content using the specified Gemini model.
+   * 
+   * Handles model name normalization and request construction for content generation.
+   * The prompt is wrapped in a ContentItem with "user" role for proper API formatting.
+   * 
+   * @param modelName Name of the model to use (with or without 'models/' prefix)
+   * @param prompt Text prompt for content generation
+   * @param config Optional generation parameters (temperature, tokens, etc.)
+   * @param apiKey API authentication key
+   * @return Future containing either a GeminiError or generated content response
+   */
   def generateContent(
       modelName: String,
       prompt: String,
