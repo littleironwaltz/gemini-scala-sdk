@@ -26,13 +26,39 @@ class AsyncGeminiAPISpec extends AsyncWordSpec with Matchers {
 
   private val mockBackend = SttpBackendStub.asynchronousFuture
 
-  // Sample JSON responses for testing
-  private val sampleModelListJson = ModelList(Seq(ModelInfo("models/gemini-2.0-test", "Gemini Test Model", "A test model", 4096, 2048))).asJson
-  private val sampleModelInfoJson = ModelInfo("models/gemini-2.0-test", "Gemini Test Model", "A test model", 4096, 2048).asJson
-  private val sampleGenerateJson = GenerateContentResponse(
-    candidates = Seq(Candidate(Content(Seq(Part("London")))))
+  // モックレスポンスの定義
+  // テスト用の構造化されたJSONレスポンス
+  private val sampleModelListJson = ModelList(
+    Seq(ModelInfo(
+      name = "models/gemini-2.0-test",
+      displayName = "Gemini Test Model",
+      description = "A test model",
+      inputTokenLimit = 4096,
+      outputTokenLimit = 2048
+    ))
   ).asJson
-  private val sampleTokenCountJson = TokenCountResponse(3).asJson
+
+  private val sampleModelInfoJson = ModelInfo(
+    name = "models/gemini-2.0-test",
+    displayName = "Gemini Test Model",
+    description = "A test model",
+    inputTokenLimit = 4096,
+    outputTokenLimit = 2048
+  ).asJson
+
+  private val sampleGenerateJson = GenerateContentResponse(
+    candidates = Seq(
+      Candidate(
+        content = Content(
+          parts = Seq(Part(text = "London"))
+        )
+      )
+    )
+  ).asJson
+
+  private val sampleTokenCountJson = TokenCountResponse(
+    totalTokens = 3
+  ).asJson
 
   // Stubbed backend to simulate API responses
   private val stubbedBackend = mockBackend
@@ -48,8 +74,11 @@ class AsyncGeminiAPISpec extends AsyncWordSpec with Matchers {
   private val mockApi = new AsyncGeminiAPI()(ec, stubbedBackend)
   val testApiKey = "MOCK_API_KEY"
 
+  // 成功系テスト
+  // 各APIメソッドの正常系動作を検証
   "AsyncGeminiAPI (mocked)" should {
-    // Test for retrieving models
+    // モデル一覧取得の正常系テスト
+    // 期待動作: 利用可能なモデルのリストが正しく返される
     "retrieve models successfully" in {
       mockApi.getModels(testApiKey).map {
         case Right(modelList) =>
@@ -92,8 +121,11 @@ class AsyncGeminiAPISpec extends AsyncWordSpec with Matchers {
     }
   }
 
+  // エラーハンドリングテスト
+  // 各種エラー状況での適切な処理を検証
   "AsyncGeminiAPI error handling (mocked)" should {
-    // Test for handling HTTP errors
+    // HTTP 500エラー時の処理検証
+    // 期待動作: 適切なエラーメッセージが返され、エラー状態が正しく伝播する
     "handle HTTP errors properly" in {
       val errorBackend = mockBackend.whenAnyRequest.thenRespondWithCode(StatusCode.InternalServerError, "Internal Server Error")
       val apiWithError = new AsyncGeminiAPI()(ec, errorBackend)
@@ -135,8 +167,11 @@ class AsyncGeminiAPISpec extends AsyncWordSpec with Matchers {
     }
   }
 
+  // リソース管理テスト
+  // バックエンドとスレッドプールの適切なクリーンアップを検証
   "AsyncGeminiAPI resource management" should {
-    // Test for closing backend without errors
+    // バックエンドのクリーンアップ検証
+    // 期待動作: バックエンドが正常にクローズされ、リソースが解放される
     "close backend without errors" in {
       noException should be thrownBy mockApi.closeBackend()
       succeed
