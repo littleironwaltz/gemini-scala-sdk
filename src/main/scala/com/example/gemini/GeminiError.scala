@@ -1,3 +1,19 @@
+/*
+ * Error Handling Types for Gemini SDK
+ * 
+ * Defines a comprehensive error handling system for the Gemini API client.
+ * Provides structured error types for:
+ * - HTTP communication errors
+ * - JSON deserialization failures
+ * - Unexpected runtime errors
+ * 
+ * Each error type includes:
+ * - Detailed error messages
+ * - Error categorization
+ * - Optional cause tracking
+ * - Conversion to standard exceptions
+ */
+
 package com.example.gemini
 
 // Define error codes as a sealed trait

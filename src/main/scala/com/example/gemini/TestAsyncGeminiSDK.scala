@@ -1,3 +1,18 @@
+/*
+ * Test Harness for Gemini SDK
+ * 
+ * Provides a runnable demonstration of the Gemini SDK's capabilities.
+ * Includes examples of:
+ * - API initialization
+ * - Model listing and details
+ * - Content generation
+ * - Token counting
+ * - Error handling
+ * - Resource cleanup
+ * 
+ * This module serves as both a test harness and usage example.
+ */
+
 package com.example.gemini
 
 import com.typesafe.scalalogging.LazyLogging

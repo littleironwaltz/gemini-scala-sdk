@@ -1,8 +1,20 @@
+/*
+ * Unit Tests for AsyncGeminiAPI
+ *
+ * Provides comprehensive test coverage for the Gemini API client:
+ * - Success case testing for all API operations
+ * - Error handling verification
+ * - Resource management testing
+ * - Mock response handling
+ *
+ * Uses ScalaTest AsyncWordSpec for asynchronous testing
+ * with SttpBackendStub for HTTP request mocking.
+ */
+
 package com.example.gemini
 
 import org.scalatest.matchers.should.Matchers
 import org.scalatest.wordspec.AsyncWordSpec
-import sttp.client3._
 import sttp.client3.testing._
 import io.circe.syntax._
 import scala.concurrent.ExecutionContext
@@ -13,13 +25,39 @@ class AsyncGeminiAPISpec extends AsyncWordSpec with Matchers {
 
   private val mockBackend = SttpBackendStub.asynchronousFuture
 
-  // Sample JSON responses for testing
-  private val sampleModelListJson = ModelList(Seq(ModelInfo("models/gemini-2.0-test", "Gemini Test Model", "A test model", 4096, 2048))).asJson
-  private val sampleModelInfoJson = ModelInfo("models/gemini-2.0-test", "Gemini Test Model", "A test model", 4096, 2048).asJson
-  private val sampleGenerateJson = GenerateContentResponse(
-    candidates = Seq(Candidate(Content(Seq(Part("London")))))
+  // Mock response definitions
+  // Structured JSON responses for testing
+  private val sampleModelListJson = ModelList(
+    Seq(ModelInfo(
+      name = "models/gemini-2.0-test",
+      displayName = "Gemini Test Model",
+      description = "A test model",
+      inputTokenLimit = 4096,
+      outputTokenLimit = 2048
+    ))
   ).asJson
-  private val sampleTokenCountJson = TokenCountResponse(3).asJson
+
+  private val sampleModelInfoJson = ModelInfo(
+    name = "models/gemini-2.0-test",
+    displayName = "Gemini Test Model",
+    description = "A test model",
+    inputTokenLimit = 4096,
+    outputTokenLimit = 2048
+  ).asJson
+
+  private val sampleGenerateJson = GenerateContentResponse(
+    candidates = Seq(
+      Candidate(
+        content = Content(
+          parts = Seq(Part(text = "London"))
+        )
+      )
+    )
+  ).asJson
+
+  private val sampleTokenCountJson = TokenCountResponse(
+    totalTokens = 3
+  ).asJson
 
   // Stubbed backend to simulate API responses
   private val stubbedBackend = mockBackend
@@ -35,8 +73,11 @@ class AsyncGeminiAPISpec extends AsyncWordSpec with Matchers {
   private val mockApi = new AsyncGeminiAPI()(ec, stubbedBackend)
   val testApiKey = "MOCK_API_KEY"
 
+  // Success case tests
+  // Verify normal operation of each API method
   "AsyncGeminiAPI (mocked)" should {
-    // Test for retrieving models
+    // Test for retrieving model list
+    // Expected: Returns a list of available models correctly
     "retrieve models successfully" in {
       mockApi.getModels(testApiKey).map {
         case Right(modelList) =>
@@ -79,8 +120,11 @@ class AsyncGeminiAPISpec extends AsyncWordSpec with Matchers {
     }
   }
 
+  // Error handling tests
+  // Verify proper handling of various error conditions
   "AsyncGeminiAPI error handling (mocked)" should {
-    // Test for handling HTTP errors
+    // Test handling of HTTP 500 errors
+    // Expected: Appropriate error message is returned and error state propagates correctly
     "handle HTTP errors properly" in {
       val errorBackend = mockBackend.whenAnyRequest.thenRespondWithCode(StatusCode.InternalServerError, "Internal Server Error")
       val apiWithError = new AsyncGeminiAPI()(ec, errorBackend)
@@ -122,8 +166,11 @@ class AsyncGeminiAPISpec extends AsyncWordSpec with Matchers {
     }
   }
 
+  // Resource management tests
+  // Verify proper cleanup of backend and thread pool
   "AsyncGeminiAPI resource management" should {
-    // Test for closing backend without errors
+    // Test backend cleanup
+    // Expected: Backend closes normally and resources are released
     "close backend without errors" in {
       noException should be thrownBy mockApi.closeBackend()
       succeed
