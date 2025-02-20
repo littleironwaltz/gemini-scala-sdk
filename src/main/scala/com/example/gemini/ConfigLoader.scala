@@ -17,7 +17,7 @@ package com.example.gemini
 
 import com.typesafe.config.{Config, ConfigFactory}
 import com.typesafe.scalalogging.LazyLogging
-import scala.util.{Try, Failure}
+import scala.util.Try
 
 object ConfigLoader extends LazyLogging {
   private val config: Config = ConfigFactory.load() // Load configuration from application.conf

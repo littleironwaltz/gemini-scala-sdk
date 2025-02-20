@@ -15,7 +15,6 @@ package com.example.gemini
 
 import org.scalatest.matchers.should.Matchers
 import org.scalatest.wordspec.AsyncWordSpec
-import sttp.client3._
 import sttp.client3.testing._
 import io.circe.syntax._
 import scala.concurrent.ExecutionContext

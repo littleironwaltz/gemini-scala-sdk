@@ -82,7 +82,7 @@ class AsyncGeminiAPI(
       path: String,
       body: Option[B],
       apiKey: String
-  ): Request[Either[ResponseException[String, Error], T]] = {
+  ): RequestT[Identity, Either[ResponseException[String, Error], T], Any] = {
     val request = method.toUpperCase match {
       case "GET" =>
         basicRequest.get(uri"$baseUrl/$path?key=$apiKey")
@@ -211,13 +211,10 @@ class AsyncGeminiAPI(
     val requestBody = GenerateContentRequest(
       contents = Seq(ContentItem("user", Seq(Part(prompt))))
     )
-    handleRequest(
-      buildPostRequest[GenerateContentResponse, GenerateContentRequest](
-        s"models/$name:generateContent",
-        requestBody,
-        apiKey
-      ),
-      s"POST /models/$name:generateContent"
+    executeRequest[GenerateContentResponse, GenerateContentRequest](
+      RequestConfig(s"models/$name:generateContent", apiKey),
+      "POST",
+      Some(requestBody)
     )
   }
 
