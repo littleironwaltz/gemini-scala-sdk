@@ -25,8 +25,8 @@ class AsyncGeminiAPISpec extends AsyncWordSpec with Matchers {
 
   private val mockBackend = SttpBackendStub.asynchronousFuture
 
-  // モックレスポンスの定義
-  // テスト用の構造化されたJSONレスポンス
+  // Mock response definitions
+  // Structured JSON responses for testing
   private val sampleModelListJson = ModelList(
     Seq(ModelInfo(
       name = "models/gemini-2.0-test",
@@ -73,11 +73,11 @@ class AsyncGeminiAPISpec extends AsyncWordSpec with Matchers {
   private val mockApi = new AsyncGeminiAPI()(ec, stubbedBackend)
   val testApiKey = "MOCK_API_KEY"
 
-  // 成功系テスト
-  // 各APIメソッドの正常系動作を検証
+  // Success case tests
+  // Verify normal operation of each API method
   "AsyncGeminiAPI (mocked)" should {
-    // モデル一覧取得の正常系テスト
-    // 期待動作: 利用可能なモデルのリストが正しく返される
+    // Test for retrieving model list
+    // Expected: Returns a list of available models correctly
     "retrieve models successfully" in {
       mockApi.getModels(testApiKey).map {
         case Right(modelList) =>
@@ -120,11 +120,11 @@ class AsyncGeminiAPISpec extends AsyncWordSpec with Matchers {
     }
   }
 
-  // エラーハンドリングテスト
-  // 各種エラー状況での適切な処理を検証
+  // Error handling tests
+  // Verify proper handling of various error conditions
   "AsyncGeminiAPI error handling (mocked)" should {
-    // HTTP 500エラー時の処理検証
-    // 期待動作: 適切なエラーメッセージが返され、エラー状態が正しく伝播する
+    // Test handling of HTTP 500 errors
+    // Expected: Appropriate error message is returned and error state propagates correctly
     "handle HTTP errors properly" in {
       val errorBackend = mockBackend.whenAnyRequest.thenRespondWithCode(StatusCode.InternalServerError, "Internal Server Error")
       val apiWithError = new AsyncGeminiAPI()(ec, errorBackend)
@@ -166,11 +166,11 @@ class AsyncGeminiAPISpec extends AsyncWordSpec with Matchers {
     }
   }
 
-  // リソース管理テスト
-  // バックエンドとスレッドプールの適切なクリーンアップを検証
+  // Resource management tests
+  // Verify proper cleanup of backend and thread pool
   "AsyncGeminiAPI resource management" should {
-    // バックエンドのクリーンアップ検証
-    // 期待動作: バックエンドが正常にクローズされ、リソースが解放される
+    // Test backend cleanup
+    // Expected: Backend closes normally and resources are released
     "close backend without errors" in {
       noException should be thrownBy mockApi.closeBackend()
       succeed

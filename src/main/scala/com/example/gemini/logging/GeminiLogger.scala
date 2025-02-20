@@ -4,29 +4,29 @@ import com.typesafe.scalalogging.LazyLogging
 import com.example.gemini.GeminiError
 
 /**
- * 共通ロギング機能を提供するトレイト
+ * Common Logging Functionality Trait
  * 
- * 特徴:
- * - コンテキストベースのログ出力
- * - APIキーの自動サニタイズ
- * - 一貫したログフォーマット
- * - エラー情報の構造化出力
+ * Features:
+ * - Context-based log output
+ * - Automatic API key sanitization
+ * - Consistent log formatting
+ * - Structured error information output
  */
 trait GeminiLogger extends LazyLogging {
   /**
-   * 情報レベルのログを出力
+   * Output an info level log message
    * 
-   * @param context ログのコンテキスト（例: "AsyncGeminiAPI", "ConfigLoader"）
-   * @param message ログメッセージ
+   * @param context Log context (e.g., "AsyncGeminiAPI", "ConfigLoader")
+   * @param message Log message
    */
   protected def logInfo(context: String, message: String): Unit =
     logger.info(s"[$context] $message")
 
   /**
-   * エラーレベルのログを出力（APIキーを自動的にマスク）
+   * Output an error level log message (automatically masks API keys)
    * 
-   * @param context ログのコンテキスト
-   * @param error GeminiErrorインスタンス
+   * @param context Log context
+   * @param error GeminiError instance
    */
   protected def logError(context: String, error: GeminiError): Unit = {
     val sanitizedMessage = error.message.replaceAll("key=[^&]*", "key=REDACTED")
@@ -34,19 +34,19 @@ trait GeminiLogger extends LazyLogging {
   }
 
   /**
-   * デバッグレベルのログを出力
+   * Output a debug level log message
    * 
-   * @param context ログのコンテキスト
-   * @param message ログメッセージ
+   * @param context Log context
+   * @param message Log message
    */
   protected def logDebug(context: String, message: String): Unit =
     logger.debug(s"[$context] $message")
 
   /**
-   * リクエスト情報のログを出力
+   * Output request information log
    * 
-   * @param method HTTPメソッド
-   * @param path リクエストパス
+   * @param method HTTP method
+   * @param path Request path
    */
   protected def logRequest(method: String, path: String): Unit =
     logDebug("Request", s"$method $path")
