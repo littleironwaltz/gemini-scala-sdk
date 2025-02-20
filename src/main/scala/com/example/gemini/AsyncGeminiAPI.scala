@@ -145,10 +145,6 @@ class AsyncGeminiAPI(
    * Retrieves a list of available Gemini models.
    * Use this to discover supported models and their capabilities.
    *
-   * @param apiKey API key for authentication
-   * @return Future containing either a GeminiError or list of available models
-   */
-  /**
    * Retrieves a list of available Gemini models.
    * Use this to discover supported models and their capabilities.
    * 
@@ -166,11 +162,6 @@ class AsyncGeminiAPI(
    * Fetches detailed information about a specific Gemini model.
    * Provides model capabilities, limits, and supported features.
    *
-   * @param modelName Name of the model (with or without 'models/' prefix)
-   * @param apiKey API key for authentication
-   * @return Future containing either a GeminiError or detailed model information
-   */
-  /**
    * Fetches detailed information about a specific Gemini model.
    * Provides model capabilities, limits, and supported features.
    * 
