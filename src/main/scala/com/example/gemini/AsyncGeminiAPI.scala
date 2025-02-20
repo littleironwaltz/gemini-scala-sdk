@@ -68,23 +68,42 @@ class AsyncGeminiAPI(
    * @tparam B Request body type with Circe encoder
    * @return Future containing either a GeminiError or successful response
    */
+  /**
+   * Builds an HTTP request with common configuration.
+   *
+   * @param method HTTP method (GET/POST)
+   * @param path API endpoint path
+   * @param body Optional request body for POST requests
+   * @param apiKey API authentication key
+   * @return Configured HTTP request
+   */
+  private def buildRequest[T: Decoder, B: Encoder](
+      method: String,
+      path: String,
+      body: Option[B],
+      apiKey: String
+  ): Request[Either[ResponseException[String, Error], T]] = {
+    val request = method.toUpperCase match {
+      case "GET" =>
+        basicRequest.get(uri"$baseUrl/$path?key=$apiKey")
+      case "POST" =>
+        basicRequest.post(uri"$baseUrl/$path?key=$apiKey").header("Content-Type", "application/json")
+      case _ => throw new IllegalArgumentException(s"Unsupported HTTP method: $method")
+    }
+    
+    val baseRequest = request.response(asJson[T])
+    body match {
+      case Some(b) => baseRequest.body(b.asJson)
+      case None => baseRequest
+    }
+  }
+
   private def executeRequest[T: Decoder, B: Encoder](
       config: RequestConfig,
       method: String,
       body: Option[B] = None
   ): GeminiResult[T] = {
-    val baseRequest = basicRequest.response(asJson[T])
-    
-    val request = (method, body) match {
-      case ("GET", _) => baseRequest.get(config.buildUri)
-      case ("POST", Some(data)) => baseRequest
-        .post(config.buildUri)
-        .header("Content-Type", "application/json")
-        .body(data.asJson)
-      case ("POST", None) => baseRequest.post(config.buildUri)
-      case (unsupported, _) => throw new IllegalArgumentException(s"Unsupported HTTP method: $unsupported")
-    }
-
+    val request = buildRequest[T, B](method, config.path, body, config.apiKey)
     handleRequest(request, s"$method ${config.path}")
   }
 
