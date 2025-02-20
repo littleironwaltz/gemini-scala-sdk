@@ -1,3 +1,18 @@
+/*
+ * Configuration Management for Gemini SDK
+ * 
+ * Handles loading and managing configuration settings from application.conf
+ * and environment variables. Provides fallback values and logging for
+ * configuration issues.
+ * 
+ * Key features:
+ * - HOCON configuration file support
+ * - Environment variable overrides
+ * - Type-safe configuration access
+ * - Fallback value handling
+ * - Configuration validation logging
+ */
+
 package com.example.gemini
 
 import com.typesafe.config.{Config, ConfigFactory}

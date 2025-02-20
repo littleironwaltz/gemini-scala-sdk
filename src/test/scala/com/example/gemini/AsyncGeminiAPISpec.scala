@@ -1,3 +1,16 @@
+/*
+ * Unit Tests for AsyncGeminiAPI
+ *
+ * Provides comprehensive test coverage for the Gemini API client:
+ * - Success case testing for all API operations
+ * - Error handling verification
+ * - Resource management testing
+ * - Mock response handling
+ *
+ * Uses ScalaTest AsyncWordSpec for asynchronous testing
+ * with SttpBackendStub for HTTP request mocking.
+ */
+
 package com.example.gemini
 
 import org.scalatest.matchers.should.Matchers

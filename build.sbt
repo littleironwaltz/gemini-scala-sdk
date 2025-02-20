@@ -1,10 +1,21 @@
-// Set the organization name
+/*
+ * Gemini Scala SDK Build Configuration
+ * 
+ * Organization: com.example.gemini
+ * Project: gemini-scala-sdk
+ * Version: 1.0.0
+ * Scala Version: 2.13.12
+ * 
+ * Key Dependencies:
+ * - STTP (3.9.1): HTTP client for API communication
+ * - Circe (0.14.1): JSON serialization/deserialization
+ * - Typesafe Config (1.4.2): Configuration management
+ * - Scala Logging (3.9.5): Logging framework
+ * - ScalaTest (3.2.16): Testing framework
+ */
+
 organization := "com.example.gemini"
-
-// Set the project name
 name := "gemini-scala-sdk"
-
-// Set the project version
 version := "1.0.0"
 
 // Set the Scala version for the build

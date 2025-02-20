@@ -1,4 +1,19 @@
-// GeminiModels.scala
+/*
+ * Data Models for Gemini API
+ * 
+ * Defines the core data structures used in the Gemini API:
+ * - Request/Response models
+ * - Configuration types
+ * - Content representation
+ * - Safety and citation metadata
+ * 
+ * Features:
+ * - Circe JSON codec integration
+ * - Type-safe model hierarchies
+ * - Shared traits for common patterns
+ * - Comprehensive documentation
+ */
+
 package com.example.gemini
 
 import io.circe.generic.JsonCodec

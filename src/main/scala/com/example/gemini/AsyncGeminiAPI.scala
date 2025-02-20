@@ -1,3 +1,17 @@
+/*
+ * Asynchronous Gemini API Client Implementation
+ * 
+ * This module provides a non-blocking client for interacting with Google's Gemini API.
+ * Key responsibilities:
+ * - HTTP request generation and execution
+ * - Error handling and response processing
+ * - Resource management (connection pooling, thread management)
+ * - Type-safe API interactions
+ * 
+ * The implementation uses STTP for HTTP communication and provides
+ * Future-based asynchronous operations with proper resource cleanup.
+ */
+
 package com.example.gemini
 
 import sttp.client3._
