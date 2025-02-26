@@ -22,7 +22,7 @@ import scala.concurrent.{ExecutionContext, ExecutionContextExecutorService}
 import sttp.model.StatusCode
 import java.util.concurrent.TimeUnit
 
-class AsyncGeminiAPISpec extends AsyncWordSpec with Matchers with BeforeAndAfterAll with Suite {
+class AsyncGeminiAPISpec extends AsyncWordSpec with Matchers with BeforeAndAfterAll {
   private val threadPool = java.util.concurrent.Executors.newFixedThreadPool(4)
   implicit val ec: ExecutionContext = ExecutionContext.fromExecutorService(threadPool)
 
