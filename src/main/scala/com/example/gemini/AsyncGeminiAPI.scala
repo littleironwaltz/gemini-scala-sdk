@@ -50,9 +50,8 @@ class AsyncGeminiAPI(
       
       val segments = basePath match {
         case "" => List("models")
-        case p if p.startsWith("models/") => p.split("/").toList
         case p if p.startsWith("/") => p.substring(1).split("/").toList
-        case p => if (p.contains("/")) p.split("/").toList else List("models", p)
+        case p => p.split("/").toList
       }
 
       val uri = method match {
