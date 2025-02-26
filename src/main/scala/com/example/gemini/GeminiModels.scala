@@ -116,6 +116,7 @@ case class ContentItem(
 // Request to generate content
 @JsonCodec
 case class GenerateContentRequest(
+  model: String, // Model to use for generation
   contents: Seq[ContentItem] // Contents to be used for generation
 )
 
@@ -126,6 +127,7 @@ case class GenerateContentRequest(
  */
 @JsonCodec
 case class CountTokensRequest(
+  model: String, // Model to use for token counting
   contents: Option[Seq[ContentItem]] = None,
   generateContentRequest: Option[GenerateContentRequest] = None
 )
