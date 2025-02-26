@@ -21,7 +21,8 @@ import scala.concurrent.ExecutionContext
 import sttp.model.StatusCode
 
 class AsyncGeminiAPISpec extends AsyncWordSpec with Matchers {
-  implicit val ec: ExecutionContext = ExecutionContext.global
+  private val threadPool = java.util.concurrent.Executors.newFixedThreadPool(4)
+  implicit val ec: ExecutionContext = ExecutionContext.fromExecutorService(threadPool)
 
   private val mockBackend = SttpBackendStub.asynchronousFuture
 
@@ -174,6 +175,18 @@ class AsyncGeminiAPISpec extends AsyncWordSpec with Matchers {
     "close backend without errors" in {
       noException should be thrownBy mockApi.closeBackend()
       succeed
+    }
+  }
+
+  override def afterAll(): Unit = {
+    try {
+      mockApi.closeBackend()
+      threadPool.shutdown()
+      if (!threadPool.awaitTermination(5, java.util.concurrent.TimeUnit.SECONDS)) {
+        threadPool.shutdownNow()
+      }
+    } finally {
+      super.afterAll()
     }
   }
 }
