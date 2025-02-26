@@ -14,9 +14,10 @@
  * - ScalaTest (3.2.16): Testing framework
  */
 
+ThisBuild / version := "0.1.0-SNAPSHOT"
+
 organization := "com.example.gemini"
 name := "gemini-scala-sdk"
-version := "1.0.0"
 
 // Set the Scala version for the build
 ThisBuild / scalaVersion := "2.13.12"
@@ -59,3 +60,36 @@ libraryDependencies ++= Seq(
 
   "ch.qos.logback" % "logback-classic" % LogbackVersion // Logback for logging
 )
+
+// Maven Central publishing configuration
+ThisBuild / organization := "com.example.gemini"
+ThisBuild / organizationName := "Example Organization"
+ThisBuild / organizationHomepage := Some(url("https://example.com"))
+ThisBuild / scmInfo := Some(
+  ScmInfo(
+    url("https://github.com/littleironwaltz/gemini-scala-sdk"),
+    "scm:git:git@github.com:littleironwaltz/gemini-scala-sdk.git"
+  )
+)
+ThisBuild / developers := List(
+  Developer(
+    "developer",
+    "Developer Name",
+    "developer@example.com",
+    url("https://example.com")
+  )
+)
+ThisBuild / description := "Scala SDK for Google's Gemini API"
+ThisBuild / licenses := List("Apache 2" -> new URL("http://www.apache.org/licenses/LICENSE-2.0.txt"))
+ThisBuild / homepage := Some(url("https://github.com/littleironwaltz/gemini-scala-sdk"))
+ThisBuild / pomIncludeRepository := { _ => false }
+ThisBuild / publishTo := sonatypePublishToBundle.value
+ThisBuild / sonatypeCredentialHost := "s01.oss.sonatype.org"
+
+// Assembly merge strategy
+assembly / assemblyMergeStrategy := {
+  case PathList("META-INF", "io.netty.versions.properties") => MergeStrategy.first
+  case x =>
+    val oldStrategy = (assembly / assemblyMergeStrategy).value
+    oldStrategy(x)
+}
