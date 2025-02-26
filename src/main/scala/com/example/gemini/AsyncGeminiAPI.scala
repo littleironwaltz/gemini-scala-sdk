@@ -65,12 +65,15 @@ class AsyncGeminiAPI(
   }
 
   /**
-   * Normalizes model names by handling optional 'models/' prefix.
+   * Normalizes model names by ensuring 'models/' prefix.
    * Ensures consistent model name format for API requests.
    * 
    * @param modelName Raw model name (with or without prefix)
-   * @return Normalized model name without 'models/' prefix
+   * @return Normalized model name with models/ prefix
    */
+  private def normalizeModelName(modelName: String): String = {
+    if (modelName.startsWith("models/")) modelName else s"models/$modelName"
+  }
   /**
    * Executes an HTTP request with proper error handling and logging.
    *
@@ -199,7 +202,7 @@ class AsyncGeminiAPI(
    * @return Future containing either a GeminiError or detailed model information
    */
   def getModelDetails(modelName: String, apiKey: String): GeminiResult[ModelInfo] = {
-    val modelPath = if (modelName.startsWith("models/")) modelName else s"models/$modelName"
+    val modelPath = normalizeModelName(modelName)
     executeRequest[ModelInfo, Unit](
       RequestConfig(modelPath, apiKey),
       "GET"
@@ -224,7 +227,7 @@ class AsyncGeminiAPI(
       config: Option[GenerationConfig],
       apiKey: String
   ): GeminiResult[GenerateContentResponse] = {
-    val modelPath = if (modelName.startsWith("models/")) modelName else s"models/$modelName"
+    val modelPath = normalizeModelName(modelName)
     val requestBody = GenerateContentRequest(
       model = modelPath,
       contents = Seq(ContentItem("user", Seq(Part(prompt))))
@@ -250,7 +253,7 @@ class AsyncGeminiAPI(
       text: String,
       apiKey: String
   ): GeminiResult[TokenCountResponse] = {
-    val modelPath = if (modelName.startsWith("models/")) modelName else s"models/$modelName"
+    val modelPath = normalizeModelName(modelName)
     val requestBody = CountTokensRequest(
       model = modelPath,
       contents = Some(Seq(ContentItem("user", Seq(Part(text))))),
