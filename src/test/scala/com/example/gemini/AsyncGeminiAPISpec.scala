@@ -15,14 +15,14 @@ package com.example.gemini
 
 import org.scalatest.matchers.should.Matchers
 import org.scalatest.wordspec.AsyncWordSpec
-import org.scalatest.{BeforeAndAfterAll, AsyncTestSuite}
+import org.scalatest.BeforeAndAfterAll
 import sttp.client3.testing._
 import io.circe.syntax._
 import scala.concurrent.{ExecutionContext, ExecutionContextExecutorService}
 import sttp.model.StatusCode
 import java.util.concurrent.TimeUnit
 
-class AsyncGeminiAPISpec extends AsyncWordSpec with Matchers with BeforeAndAfterAll with AsyncTestSuite {
+class AsyncGeminiAPISpec extends AsyncWordSpec with Matchers with BeforeAndAfterAll {
   private val threadPool = java.util.concurrent.Executors.newFixedThreadPool(4)
   implicit val ec: ExecutionContext = ExecutionContext.fromExecutorService(threadPool)
 
