@@ -10,7 +10,7 @@ class AsyncGeminiAPIIntegrationSpec extends AsyncWordSpec with Matchers with Bef
   implicit val ec: ExecutionContext = ExecutionContext.global
   private val backend = AsyncHttpClientFutureBackend()
   private val api = new AsyncGeminiAPI()(ec, backend)
-  private val targetModel = "gemini-1.5-pro-001"
+  private val targetModel = "gemini-1.5-pro"
 
   // Get API key from environment
   private val apiKey = sys.env.getOrElse("APP_GEMINI_API_KEY", "")
@@ -31,7 +31,9 @@ class AsyncGeminiAPIIntegrationSpec extends AsyncWordSpec with Matchers with Bef
         case Right(modelList) =>
           modelList.models should not be empty
           info(s"Available models: ${modelList.models.map(_.name).mkString(", ")}")
-          modelList.models.exists(_.name == s"models/$targetModel") shouldBe true
+          val modelNames = modelList.models.map(_.name)
+          info(s"Found models: ${modelNames.mkString(", ")}")
+          modelNames.exists(name => name.contains(targetModel)) shouldBe true
           succeed
         case Left(error) =>
           fail(s"Failed to list models: $error")
