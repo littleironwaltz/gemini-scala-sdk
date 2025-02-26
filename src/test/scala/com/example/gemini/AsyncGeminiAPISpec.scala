@@ -18,9 +18,8 @@ import org.scalatest.wordspec.AsyncWordSpec
 import org.scalatest.{BeforeAndAfterAll, TestSuite}
 import sttp.client3.testing._
 import io.circe.syntax._
-import scala.concurrent.{ExecutionContext, ExecutionContextExecutorService}
+import scala.concurrent.ExecutionContext
 import sttp.model.StatusCode
-import java.util.concurrent.TimeUnit
 
 class AsyncGeminiAPISpec extends AsyncWordSpec with Matchers with BeforeAndAfterAll with TestSuite {
   private val threadPool = java.util.concurrent.Executors.newFixedThreadPool(4)
