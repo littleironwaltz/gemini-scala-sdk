@@ -283,6 +283,38 @@ We welcome contributions to the project! To contribute:
 
 This project is licensed under the MIT License. See the [LICENSE](LICENSE) file for details.
 
+## Deployment
+
+### Maven Central
+The SDK is published to Maven Central. To publish a new version:
+
+1. Set version tag:
+```bash
+git tag -a v1.0.0 -m "Release 1.0.0"
+git push origin v1.0.0
+```
+
+2. The CI/CD pipeline will automatically:
+- Run tests
+- Build the package
+- Publish to Maven Central
+
+### Docker
+Build and run the Docker image:
+
+```bash
+docker-compose build
+docker-compose up
+```
+
+Environment variables can be set in a `.env` file:
+```env
+APP_GEMINI_API_KEY=your_api_key
+APP_GEMINI_BASEURL=custom_url
+APP_GEMINI_TIMEOUT_MS=30000
+LOGGER_LEVEL=INFO
+```
+
 ## Acknowledgments
 
 - Built with [STTP](https://sttp.softwaremill.com/en/latest/) for HTTP communication.

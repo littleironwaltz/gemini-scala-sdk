@@ -1,0 +1,9 @@
+version: '3.8'
+services:
+  sdk:
+    build: .
+    environment:
+      - APP_GEMINI_API_KEY=${APP_GEMINI_API_KEY}
+      - APP_GEMINI_BASEURL=${APP_GEMINI_BASEURL}
+      - APP_GEMINI_TIMEOUT_MS=${APP_GEMINI_TIMEOUT_MS}
+      - LOGGER_LEVEL=${LOGGER_LEVEL}

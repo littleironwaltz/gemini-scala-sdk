@@ -32,7 +32,7 @@ class AsyncGeminiAPI(
   type GeminiResult[T] = Future[Either[GeminiError, T]]
   type GeminiResponse[T] = Response[Either[ResponseException[String, Error], T]]
 
-  private val baseUrl = ConfigLoader.baseUrl
+  private val baseUrl = uri"https://generativelanguage.googleapis.com/v1"
 
   /**
    * Configuration for building API requests.
@@ -42,22 +42,37 @@ class AsyncGeminiAPI(
    * @param apiKey Authentication key
    */
   private case class RequestConfig(path: String, apiKey: String) {
-    def buildUri = uri"$baseUrl/$path?key=$apiKey"
+    def buildUri = {
+      val (basePath, method) = path.split(":") match {
+        case Array(base, method) => (base, Some(method))
+        case Array(base) => (base, None)
+      }
+      
+      val segments = basePath match {
+        case "" => List("models")
+        case p if p.startsWith("/") => p.substring(1).split("/").toList
+        case p => p.split("/").toList
+      }
+
+      val uri = method match {
+        case Some(m) => baseUrl.addPath(segments).addPath(s":$m")
+        case None => baseUrl.addPath(segments)
+      }
+
+      uri.addParam("key", apiKey)
+    }
   }
 
   /**
-   * Normalizes model names by handling optional 'models/' prefix.
+   * Normalizes model names by ensuring 'models/' prefix.
    * Ensures consistent model name format for API requests.
    * 
    * @param modelName Raw model name (with or without prefix)
-   * @return Normalized model name without 'models/' prefix
+   * @return Normalized model name with models/ prefix
    */
   private def normalizeModelName(modelName: String): String = {
-    val prefix = "models/"
-    if (modelName.startsWith(prefix)) modelName.stripPrefix(prefix)
-    else modelName
+    if (modelName.startsWith("models/")) modelName else s"models/$modelName"
   }
-
   /**
    * Executes an HTTP request with proper error handling and logging.
    *
@@ -83,11 +98,12 @@ class AsyncGeminiAPI(
       body: Option[B],
       apiKey: String
   ): RequestT[Identity, Either[ResponseException[String, Error], T], Any] = {
+    val config = RequestConfig(path, apiKey)
     val request = method.toUpperCase match {
       case "GET" =>
-        basicRequest.get(uri"$baseUrl/$path?key=$apiKey")
+        basicRequest.get(config.buildUri)
       case "POST" =>
-        basicRequest.post(uri"$baseUrl/$path?key=$apiKey").header("Content-Type", "application/json")
+        basicRequest.post(config.buildUri).header("Content-Type", "application/json")
       case _ => throw new IllegalArgumentException(s"Unsupported HTTP method: $method")
     }
     
@@ -117,7 +133,9 @@ class AsyncGeminiAPI(
    * @return Future containing either a GeminiError or successful response
    */
   private def handleRequest[T](request: RequestT[Identity, Either[ResponseException[String, Error], T], Any], context: String): GeminiResult[T] = {
-    val Array(method, path) = context.split(" ")
+    val parts = context.split(" ")
+    val method = parts(0)
+    val path = if (parts.length > 1) parts(1) else ""
     logRequest(method, path)
     request.send(backend).map { resp =>
       val result = handleResponse(resp, context)
@@ -183,8 +201,9 @@ class AsyncGeminiAPI(
    * @return Future containing either a GeminiError or detailed model information
    */
   def getModelDetails(modelName: String, apiKey: String): GeminiResult[ModelInfo] = {
+    val modelPath = normalizeModelName(modelName)
     executeRequest[ModelInfo, Unit](
-      RequestConfig(s"models/${normalizeModelName(modelName)}", apiKey),
+      RequestConfig(modelPath, apiKey),
       "GET"
     )
   }
@@ -207,12 +226,13 @@ class AsyncGeminiAPI(
       config: Option[GenerationConfig],
       apiKey: String
   ): GeminiResult[GenerateContentResponse] = {
-    val name = normalizeModelName(modelName)
+    val modelPath = normalizeModelName(modelName)
     val requestBody = GenerateContentRequest(
+      model = modelPath,
       contents = Seq(ContentItem("user", Seq(Part(prompt))))
     )
     executeRequest[GenerateContentResponse, GenerateContentRequest](
-      RequestConfig(s"models/$name:generateContent", apiKey),
+      RequestConfig(s"$modelPath:generateContent", apiKey),
       "POST",
       Some(requestBody)
     )
@@ -232,13 +252,14 @@ class AsyncGeminiAPI(
       text: String,
       apiKey: String
   ): GeminiResult[TokenCountResponse] = {
-    val name = normalizeModelName(modelName)
+    val modelPath = normalizeModelName(modelName)
     val requestBody = CountTokensRequest(
+      model = modelPath,
       contents = Some(Seq(ContentItem("user", Seq(Part(text))))),
       generateContentRequest = None
     )
     executeRequest[TokenCountResponse, CountTokensRequest](
-      RequestConfig(s"models/$name:countTokens", apiKey),
+      RequestConfig(s"$modelPath:countTokens", apiKey),
       "POST",
       Some(requestBody)
     )
@@ -256,13 +277,22 @@ class AsyncGeminiAPI(
    * affecting other parts of the application.
    */
   def closeBackend(): Unit = {
-    backend.close()
-    ec match {
-      case eces: ExecutionContextExecutorService =>
-        logger.info("Shutting down executor service")
-        eces.shutdown()
-      case _ =>
-        logger.debug("ExecutionContext is external; not shutting it down.")
+    try {
+      backend.close()
+      ec match {
+        case eces: ExecutionContextExecutorService =>
+          logger.info("Shutting down executor service")
+          eces.shutdown()
+          if (!eces.awaitTermination(5, java.util.concurrent.TimeUnit.SECONDS)) {
+            logger.warn("Executor service did not terminate in time")
+            eces.shutdownNow()
+          }
+        case _ =>
+          logger.debug("ExecutionContext is external; not shutting it down.")
+      }
+    } catch {
+      case e: Exception =>
+        logger.error(s"Error during backend cleanup: ${e.getMessage}")
     }
   }
 }

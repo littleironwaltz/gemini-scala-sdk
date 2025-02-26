@@ -15,13 +15,15 @@ package com.example.gemini
 
 import org.scalatest.matchers.should.Matchers
 import org.scalatest.wordspec.AsyncWordSpec
+import org.scalatest.{BeforeAndAfterAll, TestSuite}
 import sttp.client3.testing._
 import io.circe.syntax._
 import scala.concurrent.ExecutionContext
 import sttp.model.StatusCode
 
-class AsyncGeminiAPISpec extends AsyncWordSpec with Matchers {
-  implicit val ec: ExecutionContext = ExecutionContext.global
+class AsyncGeminiAPISpec extends AsyncWordSpec with Matchers with BeforeAndAfterAll with TestSuite {
+  private val threadPool = java.util.concurrent.Executors.newFixedThreadPool(4)
+  implicit val ec: ExecutionContext = ExecutionContext.fromExecutorService(threadPool)
 
   private val mockBackend = SttpBackendStub.asynchronousFuture
 
@@ -61,14 +63,26 @@ class AsyncGeminiAPISpec extends AsyncWordSpec with Matchers {
 
   // Stubbed backend to simulate API responses
   private val stubbedBackend = mockBackend
-    .whenRequestMatches(req => req.method.method == "GET" && req.uri.path.endsWith(List("models")))
-    .thenRespond(sampleModelListJson.toString())
-    .whenRequestMatches(req => req.method.method == "GET" && req.uri.toString.contains("models%2Fgemini-2.0-test") && !req.uri.path.lastOption.exists(p => p.endsWith(":generateContent") || p.endsWith(":countTokens")))
-    .thenRespond(sampleModelInfoJson.toString())
-    .whenRequestMatches(req => req.method.method == "POST" && req.uri.path.lastOption.exists(_.endsWith(":generateContent")))
-    .thenRespond(sampleGenerateJson.toString())
-    .whenRequestMatches(req => req.method.method == "POST" && req.uri.path.lastOption.exists(_.endsWith(":countTokens")))
-    .thenRespond(sampleTokenCountJson.toString())
+    // List models endpoint
+    .whenRequestMatches(req => 
+      req.method.method == "GET" && 
+      req.uri.path.endsWith(List("models"))
+    ).thenRespond(sampleModelListJson.toString())
+    // Model details endpoint
+    .whenRequestMatches(req => 
+      req.method.method == "GET" && 
+      req.uri.path.endsWith(List("models", "gemini-2.0-test"))
+    ).thenRespond(sampleModelInfoJson.toString())
+    // Generate content endpoint
+    .whenRequestMatches(req => 
+      req.method.method == "POST" && 
+      req.uri.path.endsWith(List("models", "gemini-2.0-test", ":generateContent"))
+    ).thenRespond(sampleGenerateJson.toString())
+    // Count tokens endpoint
+    .whenRequestMatches(req => 
+      req.method.method == "POST" && 
+      req.uri.path.endsWith(List("models", "gemini-2.0-test", ":countTokens"))
+    ).thenRespond(sampleTokenCountJson.toString())
 
   private val mockApi = new AsyncGeminiAPI()(ec, stubbedBackend)
   val testApiKey = "MOCK_API_KEY"
@@ -174,6 +188,18 @@ class AsyncGeminiAPISpec extends AsyncWordSpec with Matchers {
     "close backend without errors" in {
       noException should be thrownBy mockApi.closeBackend()
       succeed
+    }
+  }
+
+  override def afterAll(): Unit = {
+    try {
+      mockApi.closeBackend()
+      threadPool.shutdown()
+      if (!threadPool.awaitTermination(5, java.util.concurrent.TimeUnit.SECONDS)) {
+        threadPool.shutdownNow()
+      }
+    } finally {
+      super.afterAll()
     }
   }
 }
