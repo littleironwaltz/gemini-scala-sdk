@@ -277,13 +277,22 @@ class AsyncGeminiAPI(
    * affecting other parts of the application.
    */
   def closeBackend(): Unit = {
-    backend.close()
-    ec match {
-      case eces: ExecutionContextExecutorService =>
-        logger.info("Shutting down executor service")
-        eces.shutdown()
-      case _ =>
-        logger.debug("ExecutionContext is external; not shutting it down.")
+    try {
+      backend.close()
+      ec match {
+        case eces: ExecutionContextExecutorService =>
+          logger.info("Shutting down executor service")
+          eces.shutdown()
+          if (!eces.awaitTermination(5, java.util.concurrent.TimeUnit.SECONDS)) {
+            logger.warn("Executor service did not terminate in time")
+            eces.shutdownNow()
+          }
+        case _ =>
+          logger.debug("ExecutionContext is external; not shutting it down.")
+      }
+    } catch {
+      case e: Exception =>
+        logger.error(s"Error during backend cleanup: ${e.getMessage}")
     }
   }
 }
