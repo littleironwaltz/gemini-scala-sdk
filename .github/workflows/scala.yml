@@ -26,6 +26,8 @@ jobs:
         sudo apt-get install -y sbt
     - name: Run tests
       run: sbt test
+      env:
+        APP_GEMINI_API_KEY: ${{ secrets.APP_GEMINI_API_KEY }}
     - name: Build package
       run: sbt assembly
     - name: Upload artifact
